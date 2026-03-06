@@ -21,14 +21,6 @@
 #undef LOG_DOMAIN
 #define LOG_DOMAIN 0x000000
 
-#define MEDIA_LOG_FREQ_LIMIT(frequency)                                                                                \
-    if (1) {                                                                                                           \
-        thread_local uint64_t currentTimes = 0;                                                                        \
-        if (currentTimes++ % ((uint64_t)(frequency)) != 0) {                                                           \
-            break;                                                                                                     \
-        }                                                                                                              \
-    }
-
 #define MEDIA_LOG(func, fmt, args...)                                                                                  \
     do {                                                                                                               \
         (void)func(LOG_APP, "{%{public}s():%{public}d} " fmt, __FUNCTION__, __LINE__, ##args);                         \
@@ -39,11 +31,6 @@
 #define MEDIA_LOGW(fmt, ...) MEDIA_LOG(OH_LOG_WARN, fmt, ##__VA_ARGS__)
 #define MEDIA_LOGI(fmt, ...) MEDIA_LOG(OH_LOG_INFO, fmt, ##__VA_ARGS__)
 #define MEDIA_LOGD(fmt, ...) MEDIA_LOG(OH_LOG_DEBUG, fmt, ##__VA_ARGS__)
-#define MEDIA_LOGD_LIMIT(frequency, fmt, ...)                                                                          \
-    do {                                                                                                               \
-        MEDIA_LOG_FREQ_LIMIT(frequency);                                                                               \
-        MEDIA_LOGD(fmt, ##__VA_ARGS__);                                                                                \
-    } while (0)
 
 #define CHECK_AND_RETURN_RET_LOG(cond, ret, fmt, ...)                                                                  \
     do {                                                                                                               \
@@ -74,14 +61,6 @@
     if (1) {                                                                                                           \
         if (!(cond)) {                                                                                                 \
             MEDIA_LOGW(fmt, ##__VA_ARGS__);                                                                            \
-            continue;                                                                                                  \
-        }                                                                                                              \
-    } else                                                                                                             \
-        void(0)
-
-#define CHECK_AND_CONTINUE(cond)                                                                                       \
-    if (1) {                                                                                                           \
-        if (!(cond)) {                                                                                                 \
             continue;                                                                                                  \
         }                                                                                                              \
     } else                                                                                                             \
