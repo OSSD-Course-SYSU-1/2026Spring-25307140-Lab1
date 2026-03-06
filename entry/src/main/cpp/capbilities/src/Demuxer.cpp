@@ -71,7 +71,8 @@ int32_t Demuxer::GetTrackInfo(std::shared_ptr<OH_AVFormat> sourceFormat, SampleI
             MEDIA_LOGI("====== Demuxer Video config ======");
         } else if (trackType == MEDIA_TYPE_AUD) {
             OH_AVDemuxer_SelectTrackByID(demuxer_, index);
-            OH_AVFormat_GetIntValue(trackFormat.get(), OH_MD_KEY_AUDIO_SAMPLE_FORMAT, &info.audioInfo.audioSampleForamt);
+            OH_AVFormat_GetIntValue(trackFormat.get(), OH_MD_KEY_AUDIO_SAMPLE_FORMAT,
+                                    &info.audioInfo.audioSampleForamt);
             OH_AVFormat_GetIntValue(trackFormat.get(), OH_MD_KEY_AUD_CHANNEL_COUNT, &info.audioInfo.audioChannelCount);
             OH_AVFormat_GetLongValue(trackFormat.get(), OH_MD_KEY_CHANNEL_LAYOUT, &info.audioInfo.audioChannelLayout);
             OH_AVFormat_GetIntValue(trackFormat.get(), OH_MD_KEY_AUD_SAMPLE_RATE, &info.audioInfo.audioSampleRate);

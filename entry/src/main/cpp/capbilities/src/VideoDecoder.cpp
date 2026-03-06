@@ -85,8 +85,8 @@ int32_t VideoDecoder::Configure(const SampleInfo &sampleInfo)
     OH_AVFormat_SetIntValue(format, OH_MD_KEY_PIXEL_FORMAT, sampleInfo.videoInfo.pixelFormat);
 
     MEDIA_LOGI("====== VideoDecoder config ======");
-    MEDIA_LOGI("%{public}d*%{public}d, %{public}.1ffps", sampleInfo.videoInfo.videoWidth, sampleInfo.videoInfo.videoHeight,
-        sampleInfo.videoInfo.frameRate);
+    MEDIA_LOGI("%{public}d*%{public}d, %{public}.1ffps", sampleInfo.videoInfo.videoWidth,
+        sampleInfo.videoInfo.videoHeight, sampleInfo.videoInfo.frameRate);
     MEDIA_LOGI("====== VideoDecoder config ======");
 
     int ret = OH_VideoDecoder_Configure(decoder_, format);

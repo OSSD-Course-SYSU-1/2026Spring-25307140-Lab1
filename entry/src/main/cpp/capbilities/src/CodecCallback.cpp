@@ -46,12 +46,13 @@ OH_AudioData_Callback_Result CodecCallback::OnRenderWriteData(
 
     // SAMPLE_S16LE 2 bytes per frame
     // if set speed, cnt / speed
-    codecUserData->frameWrittenForSpeed +=
-        audioDataSize / codecUserData->speed / codecUserData->sampleInfo->audioInfo.audioChannelCount / BYTES_PER_SAMPLE_2;
+    codecUserData->frameWrittenForSpeed += audioDataSize / codecUserData->speed /
+        codecUserData->sampleInfo->audioInfo.audioChannelCount / BYTES_PER_SAMPLE_2;
     codecUserData->currentPosAudioBufferPts =
         codecUserData->endPosAudioBufferPts - codecUserData->renderQueue.size() /
-                                                  codecUserData->sampleInfo->audioInfo.audioSampleRate /
-                                                  codecUserData->sampleInfo->audioInfo.audioChannelCount / BYTES_PER_SAMPLE_2;
+        codecUserData->sampleInfo->audioInfo.audioSampleRate /
+        codecUserData->sampleInfo->audioInfo.audioChannelCount /
+        BYTES_PER_SAMPLE_2;
 
     lock.unlock();
     if (codecUserData->renderQueue.size() < audioDataSize) {
