@@ -13,4 +13,28 @@
  * limitations under the License.
  */
 
-export const add: (a: number, b: number) => number;
+export class Response {
+  code: number;
+  message: string;
+  videoWidth: number;
+  videoHeight: number;
+  durationTime: number;
+}
+
+export const play: () => void;
+
+export const pause: () => void;
+
+export const resume: () => void;
+
+export const getRenderTime: () => number;
+
+export const setSpeed: (speed: number) => void;
+
+export const seekVideo: (desTime: number) => Promise<void>;
+
+export const switchVideo: (
+  inputFileFd: number,
+  inputFileOffset: number,
+  inputFileSize: number
+) => Promise<Response>;

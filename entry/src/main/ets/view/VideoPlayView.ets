@@ -21,12 +21,26 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { getShowTime } from '../common/TimeUtils';
 import { PlayerState } from '../model/PlayerStateModel';
 import { CommonConstants as Const } from '../common/CommonConstants';
+import player, { getRenderTime } from 'libplayer.so';
 
 const DOMAIN = 0x0000;
 const TAG = 'INDEX';
 const FULL_SIZE = '100%';
 const NORMAL_SIZE = '100%';
 const WIDTH_SIZE = '100%';
+
+/**
+ * The thread function for querying the current rendering time.
+ */
+@Concurrent
+function periodicFunc(): void {
+  try {
+    let currentTime = getRenderTime();
+    taskpool.Task.sendData(currentTime);
+  } catch (error) {
+    hilog.error(0x0000, 'periodicFunc', `sendData catch error, code: ${error.code}, message: ${error.message}`);
+  }
+}
 
 @Component
 export struct VideoPlayView {
@@ -65,6 +79,20 @@ export struct VideoPlayView {
       }).catch((error: BusinessError) => {
         hilog.error(DOMAIN, TAG, `Failed to getLastWindow. Cause: ${error.code}, message: ${error.message}`);
       });
+
+      // Register callbacks for monitoring the app entering the foreground and background.
+      hostContext?.eventHub.on('onBackground', this.backgroundEventFunc);
+      hostContext?.eventHub.on('onForeground', this.foregroundEventFunc);
+
+      // Create a sub-thread for obtaining rendering time.
+      this.taskArray.length = 0;
+      this.taskArray.push(new taskpool.Task(periodicFunc));
+      this.taskArray[0].onReceiveData((value: number) => {
+        if (!this.isSeek) {
+          this.currentTime = value / Const.TIME_RATIO;
+        }
+      })
+      taskpool.executePeriodically(Const.TIME_INTERVAL, this.taskArray[0], taskpool.Priority.HIGH);
     } catch (error) {
       hilog.error(DOMAIN, TAG, `aboutToAppear catch error, code: ${error.code}, message: ${error.message}`);
       return;
@@ -81,6 +109,18 @@ export struct VideoPlayView {
     } catch (error) {
       hilog.error(0x0000, TAG, `aboutToDisappear catch error, code: ${error.code}, message: ${error.message}`);
       return;
+    }
+  }
+
+  backgroundEventFunc() {
+    // The app stops playing when exiting to the background.
+    player.pause();
+  }
+
+  foregroundEventFunc() {
+    // The app resumes playing when returning to the foreground.
+    if (AppStorage.get<PlayerState>('playState') === PlayerState.PLAYING) {
+      player.resume();
     }
   }
 
@@ -147,6 +187,16 @@ export struct VideoPlayView {
                 $r('app.media.ic_public_pause') : $r('app.media.ic_public_play'))
                 .width('25vp')
                 .height('25vp')
+                .onClick(() => {
+                  // Playback State Management.
+                  if (this.playState === PlayerState.PLAYING) {
+                    player.pause();
+                    this.playState = PlayerState.PAUSE;
+                  } else if (this.playState === PlayerState.PAUSE) {
+                    player.resume();
+                    this.playState = PlayerState.PLAYING;
+                  }
+                })
             }
             .width(this.isFullScreen ? '5%' : '8%')
             .height('100%')
@@ -171,6 +221,16 @@ export struct VideoPlayView {
                   if (this.durationTime > 0) {
                     if (mode === SliderChangeMode.Begin) {
                       this.isSeek = true;
+                    }
+                    if (mode == SliderChangeMode.End) {
+                      // Perform the seek operation when the sliding ends.
+                      player.seekVideo(value).then(()=>{
+                        this.playState = PlayerState.PLAYING;
+                        // Wait for the loading to complete before getting the time.
+                        setTimeout(() => {
+                          this.isSeek = false;
+                        }, Const.RELOAD_TIME);
+                      })
                     }
                   }
                 })
@@ -238,6 +298,7 @@ export struct VideoPlayView {
                     if (this.chooseSpeed !== item) {
                       this.chooseSpeed = item;
                       // Set the playback speed and update the UI.
+                      player.setSpeed(this.chooseSpeed);
                       this.speedText = Const.VIDEO_SPEED_TEXT_ARR[index];
                       this.isSpeedListVisible = false;
                     }
@@ -282,7 +343,7 @@ export struct VideoPlayView {
       Column() {
         Row() {
           Text($r('app.string.Video_name'))
-            .fontSize($r('app.float.page_text_font_size'))
+            .fontSize('24fp')
             .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
         }
@@ -333,6 +394,18 @@ export struct VideoPlayView {
                   if (!rawDes) {
                     hilog.error(DOMAIN, TAG, 'player inputFile is null');
                   }
+                  // Switch video and change state after success.
+                  player.switchVideo(rawDes!.fd, rawDes!.offset, rawDes!.length).then((data) => {
+                    if (data.code === 0) {
+                      player.play();
+                      this.playState = PlayerState.PLAYING;
+                      this.durationTime = data.durationTime / Const.TIME_RATIO;
+                      this.isUse = true;
+                    } else {
+                      hilog.error(DOMAIN, TAG, 'player init failed, err code is ' + data.code);
+                    }
+                    this.isSwitchEnable = true;
+                  })
                 })
               }
             }, (item: resourceManager.RawFileDescriptor, index: number) => {
