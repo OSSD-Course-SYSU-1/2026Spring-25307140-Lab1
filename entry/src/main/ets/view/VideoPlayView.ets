@@ -21,7 +21,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { getShowTime } from '../common/TimeUtils';
 import { PlayerState } from '../model/PlayerStateModel';
 import { CommonConstants as Const } from '../common/CommonConstants';
-import player, { getRenderTime } from 'libplayer.so';
+import player from 'libplayer.so';
 
 const DOMAIN = 0x0000;
 const TAG = 'INDEX';
@@ -35,7 +35,7 @@ const WIDTH_SIZE = '100%';
 @Concurrent
 function periodicFunc(): void {
   try {
-    let currentTime = getRenderTime();
+    let currentTime = player.getRenderTime();
     taskpool.Task.sendData(currentTime);
   } catch (error) {
     hilog.error(0x0000, 'periodicFunc', `sendData catch error, code: ${error.code}, message: ${error.message}`);
