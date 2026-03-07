@@ -439,7 +439,7 @@ void Player::AudioDecInputThread()
 
 void Player::AudioDecOutputThread()
 {
-    while (true) {
+    while (isDecoding) {
         CHECK_AND_BREAK_LOG(isStarted_, "Decoder output thread out");
         std::unique_lock<std::mutex> lock(audioDecContext_->outputMutex);
         audioDecContext_->outputCond.wait(lock, [this]() {
