@@ -37,7 +37,8 @@ using namespace std::chrono_literals;
 #define LOG_DOMAIN 0xFF00
 #define LOG_TAG "Player"
 
-Player::Player() {
+Player::Player()
+{
     isStarted_.store(false);
     isPause_.store(false);
     isReleased_.store(false);
@@ -53,7 +54,8 @@ Player::Player() {
 Player::~Player() { Player::StartRelease(); }
 
 // [Start player_init]
-int32_t Player::Init(SampleInfo &info) {
+int32_t Player::Init(SampleInfo &info)
+{
     // [StartExclude player_init]
     std::unique_lock<std::mutex> lock(mutex_);
     CHECK_AND_RETURN_RET_LOG(!isStarted_, MEDIA_ERR_ERROR, "Already started.");
@@ -88,7 +90,8 @@ int32_t Player::Init(SampleInfo &info) {
 }
 // [End player_init]
 
-int32_t Player::CreateAudioDecoder() {
+int32_t Player::CreateAudioDecoder()
+{
     MEDIA_LOGI("audio mime:%{public}s", videoInfo_.audioInfo.audioCodecMime.c_str());
     int32_t ret = audioDecoder_->Create(videoInfo_.audioInfo.audioCodecMime);
     if (ret != MEDIA_ERR_OK) {
@@ -128,7 +131,8 @@ int32_t Player::CreateAudioDecoder() {
 }
 
 // [Start CreateVideoDecoder]
-int32_t Player::CreateVideoDecoder() {
+int32_t Player::CreateVideoDecoder()
+{
     // Create decoder by system mime.
     int32_t ret = videoDecoder_->Create(videoInfo_.videoInfo.videoCodecMime);
     CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "Create video decoder failed, mime:%{public}s",
@@ -143,7 +147,8 @@ int32_t Player::CreateVideoDecoder() {
 // [End CreateVideoDecoder]
 
 // [Start player_start]
-int32_t Player::Start() {
+int32_t Player::Start()
+{
     std::unique_lock<std::mutex> lock(mutex_);
     int32_t ret;
     CHECK_AND_RETURN_RET_LOG(!isStarted_, MEDIA_ERR_ERROR, "Already started.");
@@ -194,7 +199,8 @@ int32_t Player::Start() {
 // [End player_start]
 
 // [Start videoInput]
-void Player::VideoDecInputThread() {
+void Player::VideoDecInputThread()
+{
     while (isDecoding) {
         CHECK_AND_BREAK_LOG(isStarted_, "Decoder input thread out");
         // [Start wait]
@@ -258,7 +264,8 @@ void Player::VideoDecInputThread() {
 }
 // [End videoInput]
 
-CodecBufferInfo Player::GetBufferInfo() {
+CodecBufferInfo Player::GetBufferInfo()
+{
     // Get Buffer after decoding and maintain the queue.
     CodecBufferInfo bufferInfo = videoDecContext_->outputBufferInfoQueue.front();
     videoDecContext_->outputBufferInfoQueue.pop();
@@ -272,7 +279,8 @@ CodecBufferInfo Player::GetBufferInfo() {
     return bufferInfo;
 }
 
-bool Player::AudioToVideoSync(CodecBufferInfo bufferInfo, int64_t framePosition) {
+bool Player::AudioToVideoSync(CodecBufferInfo bufferInfo, int64_t framePosition)
+{
     // after seek, audio render flush, framePosition = 0, then writtenSampleCnt = 0
     int64_t latency = (audioDecContext_->frameWrittenForSpeed - framePosition) * 1000 * 1000 /
                       videoInfo_.audioInfo.audioSampleRate / speed_;
@@ -321,7 +329,8 @@ bool Player::AudioToVideoSync(CodecBufferInfo bufferInfo, int64_t framePosition)
 }
 
 // [Start videoOutput]
-void Player::VideoDecOutputThread() {
+void Player::VideoDecOutputThread()
+{
     videoInfo_.videoInfo.frameInterval = MICROSECOND / videoInfo_.videoInfo.frameRate;
     while (isDecoding) {
         thread_local auto lastPushTime = std::chrono::system_clock::now();
@@ -371,7 +380,8 @@ void Player::VideoDecOutputThread() {
 }
 // [End videoOutput]
 
-int64_t Player::GetCurrentTime() {
+int64_t Player::GetCurrentTime()
+{
     int64_t result = -1; // -1 for bad result
     struct timespec time;
     clockid_t clockId = CLOCK_MONOTONIC;
@@ -381,7 +391,8 @@ int64_t Player::GetCurrentTime() {
     return result;
 }
 
-void Player::AudioDecInputThread() {
+void Player::AudioDecInputThread()
+{
     while (isDecoding) {
         CHECK_AND_BREAK_LOG(isStarted_, "Decoder input thread out");
         std::unique_lock<std::mutex> lock(audioDecContext_->inputMutex);
