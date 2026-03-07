@@ -13,29 +13,39 @@
  * limitations under the License.
  */
 
+import { resourceManager } from '@kit.LocalizationKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import testNapi from 'libentry.so';
+import { VideoPlayView } from '../view/VideoPlayView';
 
-const DOMAIN = 0x0000;
+const VIDEO_NAMES = ['1.mp4', '2.mp4', '3.mp4'];
+const TAG = 'INDEX';
 
 @Entry
 @Component
 struct Index {
-  @State message: string = 'Hello World';
+  @State videoResources : resourceManager.RawFileDescriptor[] = [];
+
+  aboutToAppear(): void {
+    try {
+      this.videoResources.length = 0;
+      for (let i = 0; i< VIDEO_NAMES.length; i++) {
+        let rawDes = this.getUIContext().getHostContext()?.resourceManager.getRawFdSync(VIDEO_NAMES[i]);
+        if (rawDes) {
+          this.videoResources.push(rawDes);
+        }
+      }
+    } catch (error) {
+      hilog.error(0x0000, TAG, `aboutToAppear catch error, code: ${error.code}, message: ${error.message}`);
+    }
+  }
 
   build() {
-    Row() {
-      Column() {
-        Text(this.message)
-          .fontSize($r('app.float.page_text_font_size'))
-          .fontWeight(FontWeight.Bold)
-          .onClick(() => {
-            this.message = 'Welcome';
-            hilog.info(DOMAIN, 'testTag', 'Test NAPI 2 + 3 = %{public}d', testNapi.add(2, 3));
-          })
-      }
-      .width('100%')
+    Column() {
+      VideoPlayView({
+        videoSources: this.videoResources
+      });
     }
+    .width('100%')
     .height('100%')
   }
 }
