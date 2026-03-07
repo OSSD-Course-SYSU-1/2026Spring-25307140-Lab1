@@ -1,0 +1,434 @@
+/*
+ * Copyright (c) 2026 Huawei Device Co., Ltd.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <cinttypes>
+#include <cstdint>
+#include "CodecCallback.h"
+#include "XComponentManager.h"
+#include "common/include/MediaError.h"
+#include "common/include/MediaLog.h"
+#include "Player.h"
+
+constexpr int BALANCE_VALUE = 5;
+constexpr int64_t WAIT_TIME_US_THRESHOLD_WARNING = -1 * 40 * 1000; // warning threshold 40ms
+constexpr int64_t WAIT_TIME_US_THRESHOLD = 1 * 1000 * 1000;        // max sleep time 1s
+constexpr int64_t PER_SINK_TIME_THRESHOLD = 33 * 1000;             // max per sink time 33ms
+constexpr int64_t SINK_TIME_US_THRESHOLD = 100000;                 // max sink time 100ms
+constexpr int32_t BYTES_PER_SAMPLE_2 = 2;                          // 2 bytes per sample
+constexpr int32_t SEC_TO_NSEC = 1000000000;                        // s to ns
+constexpr int32_t WAIT_TIME = 100;                                 // thread release wait time
+
+using namespace std::chrono_literals;
+
+#undef LOG_DOMAIN
+#undef LOG_TAG
+#define LOG_DOMAIN 0xFF00
+#define LOG_TAG "Player"
+
+Player::Player()
+{
+    isStarted_.store(false);
+    isPause_.store(false);
+    isReleased_.store(false);
+    isReadRenderTime_.store(true);
+    isAudioWaitSeek_.store(false);
+    currentRenderTime_.store(0);
+    speed_ = 1.0f;
+    nowTimeStamp_ = 0;
+    audioTimeStamp_ = 0;
+    audioBufferPts_ = 0;
+}
+
+Player::~Player() { Player::StartRelease(); }
+
+// [Start player_init]
+int32_t Player::Init(SampleInfo &info)
+{
+    // [StartExclude player_init]
+    std::unique_lock<std::mutex> lock(mutex_);
+    CHECK_AND_RETURN_RET_LOG(!isStarted_, MEDIA_ERR_ERROR, "Already started.");
+    CHECK_AND_RETURN_RET_LOG(demuxer_ == nullptr && videoDecoder_ == nullptr && audioDecoder_ == nullptr,
+                             MEDIA_ERR_ERROR, "Already started.");
+
+    videoInfo_ = info;
+    // [EndExclude player_init]
+    // Create decode sources pointer.
+    videoDecoder_ = std::make_unique<VideoDecoder>();
+    audioDecoder_ = std::make_unique<AudioDecoder>();
+    demuxer_ = std::make_unique<Demuxer>();
+
+    // Create demuxer by video info.
+    int32_t ret = demuxer_->Create(videoInfo_);
+    CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, ret, "Create demuxer failed");
+    // Create and Configure audio ande video decoder.
+    ret = CreateAudioDecoder();
+    CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, ret, "Create audio decoder failed");
+    ret = CreateVideoDecoder();
+    CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, ret, "Create video decoder failed");
+    // [StartExclude player_init]
+    if (audioDecContext_ != nullptr) {
+        audioDecContext_->sampleInfo = &videoInfo_;
+    }
+
+    info = videoInfo_;
+    isReleased_ = false;
+    lock.unlock();
+    return MEDIA_ERR_OK;
+    // [EndExclude player_init]
+}
+// [End player_init]
+
+int32_t Player::CreateAudioDecoder()
+{
+    MEDIA_LOGI("audio mime:%{public}s", videoInfo_.audioInfo.audioCodecMime.c_str());
+    int32_t ret = audioDecoder_->Create(videoInfo_.audioInfo.audioCodecMime);
+    if (ret != MEDIA_ERR_OK) {
+        MEDIA_LOGE("Create audio decoder failed, mime:%{public}s", videoInfo_.audioInfo.audioCodecMime.c_str());
+    } else {
+        audioDecContext_ = new CodecUserData;
+        ret = audioDecoder_->Config(videoInfo_, audioDecContext_);
+        CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, ret, "Audio Decoder config failed");
+        OH_AudioStreamBuilder_Create(&builder_, AUDIOSTREAM_TYPE_RENDERER);
+        OH_AudioStreamBuilder_SetLatencyMode(builder_, AUDIOSTREAM_LATENCY_MODE_NORMAL);
+        // Set the audio sample rate
+        OH_AudioStreamBuilder_SetSamplingRate(builder_, videoInfo_.audioInfo.audioSampleRate);
+        // Set the audio channel
+        OH_AudioStreamBuilder_SetChannelCount(builder_, videoInfo_.audioInfo.audioChannelCount);
+        // Set the audio sample format
+        OH_AudioStreamBuilder_SetSampleFormat(builder_, AUDIOSTREAM_SAMPLE_S16LE);
+        // Sets the encoding type of the audio stream
+        OH_AudioStreamBuilder_SetEncodingType(builder_, AUDIOSTREAM_ENCODING_TYPE_RAW);
+        // Set the working scenario for the output audio stream
+        OH_AudioStreamBuilder_SetRendererInfo(builder_, AUDIOSTREAM_USAGE_MUSIC);
+        MEDIA_LOGW("Init audioSampleRate: %{public}d, ChannelCount: %{public}d", videoInfo_.audioInfo.audioSampleRate,
+                   videoInfo_.audioInfo.audioChannelCount);
+        OH_AudioRenderer_Callbacks callbacks;
+        // Configure the callback function
+        callbacks.OH_AudioRenderer_OnWriteData = nullptr;
+        callbacks.OH_AudioRenderer_OnStreamEvent = CodecCallback::OnRenderStreamEvent;
+        callbacks.OH_AudioRenderer_OnInterruptEvent = CodecCallback::OnRenderInterruptEvent;
+        callbacks.OH_AudioRenderer_OnError = CodecCallback::OnRenderError;
+        // Set the callback for the output audio stream
+        OH_AudioStreamBuilder_SetRendererCallback(builder_, callbacks, audioDecContext_);
+        
+        OH_AudioRenderer_OnWriteDataCallback writDataCb = CodecCallback::OnRenderWriteData;
+        OH_AudioStreamBuilder_SetRendererWriteDataCallback(builder_, writDataCb, audioDecContext_);
+        OH_AudioStreamBuilder_GenerateRenderer(builder_, &audioRenderer_);
+    }
+    return MEDIA_ERR_OK;
+}
+
+// [Start CreateVideoDecoder]
+int32_t Player::CreateVideoDecoder()
+{
+    // Create decoder by system mime.
+    int32_t ret = videoDecoder_->Create(videoInfo_.videoInfo.videoCodecMime);
+    CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "Create video decoder failed, mime:%{public}s",
+                             videoInfo_.videoInfo.videoCodecMime.c_str());
+    videoDecContext_ = new CodecUserData;
+    // Configure nativeWindow and video info to decoder.
+    videoInfo_.videoInfo.window = XComponentManager::GetInstance()->nativeWindow_;
+    ret = videoDecoder_->Config(videoInfo_, videoDecContext_);
+    CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, ret, "Video Decoder config failed");
+    return MEDIA_ERR_OK;
+}
+// [End CreateVideoDecoder]
+
+// [Start player_start]
+int32_t Player::Start()
+{
+    std::unique_lock<std::mutex> lock(mutex_);
+    int32_t ret;
+    CHECK_AND_RETURN_RET_LOG(!isStarted_, MEDIA_ERR_ERROR, "Already started.");
+    CHECK_AND_RETURN_RET_LOG(demuxer_ != nullptr, MEDIA_ERR_ERROR, "Already started.");
+    if (videoDecContext_) {
+        // Start the video decoder.
+        ret = videoDecoder_->Start();
+        CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, ret, "Video Decoder start failed");
+        // Set start state.
+        isStarted_ = true;
+        isPause_ = false;
+        // Create video decode input and output sub thread.
+        videoDecInputThread_ = std::make_unique<std::thread>(&Player::VideoDecInputThread, this);
+        videoDecOutputThread_ = std::make_unique<std::thread>(&Player::VideoDecOutputThread, this);
+        // Deal exception.
+        if (videoDecInputThread_ == nullptr || videoDecOutputThread_ == nullptr) {
+            MEDIA_LOGE("Create thread failed");
+            StartRelease();
+            return MEDIA_ERR_ERROR;
+        }
+    }
+    // [StartExclude player_start]
+    if (audioDecContext_) {
+        ret = audioDecoder_->Start();
+        CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, ret, "Audio Decoder start failed");
+        isStarted_ = true;
+        audioDecInputThread_ = std::make_unique<std::thread>(&Player::AudioDecInputThread, this);
+        audioDecOutputThread_ = std::make_unique<std::thread>(&Player::AudioDecOutputThread, this);
+        if (audioDecInputThread_ == nullptr || audioDecOutputThread_ == nullptr) {
+            MEDIA_LOGE("Create thread failed");
+            StartRelease();
+            return MEDIA_ERR_ERROR;
+        }
+        // Clear the queue
+        while (audioDecContext_ && !audioDecContext_->renderQueue.empty()) {
+            audioDecContext_->renderQueue.pop();
+        }
+        if (audioRenderer_) {
+            OH_AudioRenderer_Start(audioRenderer_);
+            OH_AudioRenderer_SetSpeed(audioRenderer_, speed_);
+            audioDecContext_->speed = speed_;
+        }
+    }
+    lock.unlock();
+    return MEDIA_ERR_OK;
+    // [EndExclude player_start]
+}
+// [End player_start]
+
+// [Start videoInput]
+void Player::VideoDecInputThread()
+{
+    while (true) {
+        CHECK_AND_BREAK_LOG(isStarted_, "Decoder input thread out");
+        // [Start wait]
+        // Use condition to wait for decoder requests for data.
+        std::unique_lock<std::mutex> lock(videoDecContext_->inputMutex);
+        videoDecContext_->inputCond.wait(lock, [this]() {
+            return !isPause_ && (!isStarted_ || !videoDecContext_->inputBufferInfoQueue.empty());
+        });
+        // [End wait]
+        // Check states.
+        CHECK_AND_BREAK_LOG(isStarted_, "Work done, thread out");
+        CHECK_AND_CONTINUE_LOG(!isPause_, "not pause, continue");
+        CHECK_AND_CONTINUE_LOG(!videoDecContext_->inputBufferInfoQueue.empty(),
+                               "Buffer queue is empty, continue.");
+
+        // Get AVBuffer and maintain the queue.
+        CodecBufferInfo bufferInfo = videoDecContext_->inputBufferInfoQueue.front();
+        videoDecContext_->inputBufferInfoQueue.pop();
+        videoDecContext_->inputFrameCount++;
+        lock.unlock();
+
+        // Check flush state;
+        std::shared_lock<std::shared_mutex> flushLock(videoDecContext_->flushMutex_, std::try_to_lock);
+        if (!flushLock.owns_lock() || videoDecContext_->isFlushing.load()) {
+            continue;
+        }
+
+        // [Start XPS]
+        // [Start VideoReadSample]
+        // read sample from demuxer.
+        int32_t ret = demuxer_->ReadSample(demuxer_->GetVideoTrackId(),
+                                           reinterpret_cast<OH_AVBuffer *>(bufferInfo.buffer), bufferInfo.attr);
+        CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "ReadSample failed, thread out");
+
+        // [StartExclude XPS]
+        // Check if the buffer flag include eos.
+        if (bufferInfo.attr.flags & AVCODEC_BUFFER_FLAGS_EOS) {
+            while (!isAudioWaitSeek_.load()) {
+                std::this_thread::sleep_for(std::chrono::microseconds(WAIT_TIME));
+            }
+            // Seek to the first frame.
+            ret = demuxer_->Seek(0);
+            CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "Loop failed, thread out");
+            // Read first frame data from demuxer.
+            ret = demuxer_->ReadSample(demuxer_->GetVideoTrackId(), reinterpret_cast<OH_AVBuffer *>(bufferInfo.buffer),
+                                       bufferInfo.attr);
+            CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "ReadSample failed, thread out");
+        }
+        
+        if (audioDecContext_ && isAudioWaitSeek_.load()) {
+            audioDecContext_->endCond.notify_all();
+            audioDecContext_->inputCond.notify_all();
+        }
+        // [End VideoReadSample]
+        // [EndExclude XPS]
+
+        // push the buffer to the decoder.
+        ret = videoDecoder_->PushInputBuffer(bufferInfo);
+        CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "Push data failed, thread out");
+        // [End XPS]
+    }
+    MEDIA_LOGI("VideoDecInputThread out.");
+}
+// [End videoInput]
+
+// [Start videoOutput]
+void Player::VideoDecOutputThread()
+{
+    videoInfo_.videoInfo.frameInterval = MICROSECOND / videoInfo_.videoInfo.frameRate;
+    while (true) {
+        thread_local auto lastPushTime = std::chrono::system_clock::now();
+        CHECK_AND_BREAK_LOG(isStarted_, "VD Decoder output thread out");
+        // Use condition to wait for decoder push data.
+        std::unique_lock<std::mutex> lock(videoDecContext_->outputMutex);
+        videoDecContext_->outputCond.wait(lock, [this]() {
+            return !isPause_ && (!isStarted_ || !videoDecContext_->outputBufferInfoQueue.empty());
+        });
+        // Check states.
+        CHECK_AND_BREAK_LOG(isStarted_, "VD Decoder output thread out");
+        CHECK_AND_CONTINUE_LOG(!isPause_, "not pause, continue");
+        CHECK_AND_CONTINUE_LOG(!videoDecContext_->outputBufferInfoQueue.empty(),
+                               "VD Buffer queue is empty, continue.");
+
+        // Get Buffer after decoding and maintain the queue.
+        CodecBufferInfo bufferInfo = videoDecContext_->outputBufferInfoQueue.front();
+        videoDecContext_->outputBufferInfoQueue.pop();
+        MEDIA_LOGI("VD bufferInfo.bufferIndex: %{public}d", bufferInfo.bufferIndex);
+        videoDecContext_->outputFrameCount++;
+        MEDIA_LOGI("VD Out buffer count: %{public}u, size: %{public}d, flag: %{public}u, pts: %{public}" PRId64,
+                   videoDecContext_->outputFrameCount, bufferInfo.attr.size, bufferInfo.attr.flags,
+                   bufferInfo.attr.pts);
+        if (isReadRenderTime_.load()) {
+            currentRenderTime_.store(bufferInfo.attr.pts);
+        }
+        lock.unlock();
+        // [StartExclude videoOutput]
+        std::shared_lock<std::shared_mutex> flushLock(videoDecContext_->flushMutex_, std::try_to_lock);
+        if (!flushLock.owns_lock() || videoDecContext_->isFlushing.load()) {
+            continue;
+        }
+
+        // get audio render position
+        int64_t framePosition = 0;
+        int64_t timeStamp = 0;
+        int32_t ret = OH_AudioRenderer_GetTimestamp(audioRenderer_, CLOCK_MONOTONIC, &framePosition, &timeStamp);
+
+        audioTimeStamp_ = timeStamp;
+
+        // audio render getTimeStamp error, render it
+        if (ret != AUDIOSTREAM_SUCCESS || (timeStamp == 0) || (framePosition == 0)) {
+            // first frame, render without wait
+            videoDecoder_->RenderOutputBuffer(bufferInfo.bufferIndex, true);
+            std::this_thread::sleep_until(lastPushTime + std::chrono::microseconds(videoInfo_.videoInfo.frameInterval));
+            lastPushTime = std::chrono::system_clock::now();
+            continue;
+        }
+        // after seek, audio render flush, framePosition = 0, then writtenSampleCnt = 0
+        int64_t latency = (audioDecContext_->frameWrittenForSpeed - framePosition) * 1000 * 1000 /
+                          videoInfo_.audioInfo.audioSampleRate / speed_;
+        MEDIA_LOGI("VD latency: %{public}ld writtenSampleCnt: %{public}ld", latency,
+                   audioDecContext_->frameWrittenForSpeed);
+
+        nowTimeStamp_ = GetCurrentTime();
+        int64_t anchorDiff = (nowTimeStamp_ - audioTimeStamp_) / 1000;
+        // us, audio buffer accelerate render time
+        int64_t audioPlayedTime = audioDecContext_->currentPosAudioBufferPts - latency + anchorDiff;
+        // us, video buffer expected render time
+        int64_t videoPlayedTime = bufferInfo.attr.pts;
+
+        // audio render timeStamp and now timeStamp diff
+        int64_t waitTimeUs = videoPlayedTime - audioPlayedTime;
+
+        MEDIA_LOGI("VD bufferInfo.bufferIndex: %{public}d", bufferInfo.bufferIndex);
+        MEDIA_LOGI("VD audioPlayedTime: %{public}ld, videoPlayedTime: %{public}ld, nowTimeStamp: %{public}ld, "
+                   "audioTimeStamp: %{public}ld, waitTimeUs: %{public}ld, anchorDiff: %{public}ld",
+                   audioPlayedTime, videoPlayedTime, nowTimeStamp_, audioTimeStamp_, waitTimeUs, anchorDiff);
+
+        bool dropFrame = false;
+
+        // [Start AVSync]
+        // video buffer is too late, drop it
+        if (waitTimeUs < WAIT_TIME_US_THRESHOLD_WARNING) {
+            dropFrame = true;
+            MEDIA_LOGW("VD buffer is too late");
+        } else {
+            MEDIA_LOGW("VD buffer is too early waitTimeUs: %{public}ld", waitTimeUs);
+            // [0, ), render it with waitTimeUs, max 1s
+            // [-40,0), render it
+            if (waitTimeUs > WAIT_TIME_US_THRESHOLD) {
+                waitTimeUs = WAIT_TIME_US_THRESHOLD;
+            }
+            // per frame render time reduced by 33ms
+            if (waitTimeUs > videoInfo_.videoInfo.frameInterval + PER_SINK_TIME_THRESHOLD) {
+                waitTimeUs = videoInfo_.videoInfo.frameInterval + PER_SINK_TIME_THRESHOLD;
+                MEDIA_LOGW("VD buffer is too early and reduced 33ms, waitTimeUs: %{public}ld", waitTimeUs);
+            }
+        }
+        if (waitTimeUs > 0) {
+            std::this_thread::sleep_for(std::chrono::microseconds(waitTimeUs));
+        }
+        CHECK_AND_BREAK_LOG(isStarted_, "VD Decoder output thread out");
+        lastPushTime = std::chrono::system_clock::now();
+        // [End AVSync]
+        // [EndExclude videoOutput]
+        // Notify the suface to render the data and release it.
+        ret = videoDecoder_->RenderOutputBuffer(bufferInfo.bufferIndex, !dropFrame);
+        CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "Decoder output thread out");
+    }
+    audioBufferPts_ = 0;
+    MEDIA_LOGI("VideoDecOutputThread out.");
+}
+// [End videoOutput]
+
+int64_t Player::GetCurrentTime()
+{
+    int64_t result = -1; // -1 for bad result
+    struct timespec time;
+    clockid_t clockId = CLOCK_MONOTONIC;
+    int ret = clock_gettime(clockId, &time);
+    CHECK_AND_RETURN_RET_LOG(ret >= 0, result, "GetCurNanoTime fail, result: %{public}d", ret);
+    result = (time.tv_sec * SEC_TO_NSEC) + time.tv_nsec;
+    return result;
+}
+
+void Player::AudioDecInputThread()
+{
+    while (true) {
+        CHECK_AND_BREAK_LOG(isStarted_, "Decoder input thread out");
+        std::unique_lock<std::mutex> lock(audioDecContext_->inputMutex);
+        audioDecContext_->inputCond.wait(lock, [this]() {
+            return !isPause_ && (!isStarted_ || !audioDecContext_->inputBufferInfoQueue.empty());
+        });
+        CHECK_AND_BREAK_LOG(isStarted_, "Work done, thread out");
+        CHECK_AND_CONTINUE_LOG(!isPause_, "not pause, continue");
+        CHECK_AND_CONTINUE_LOG(!audioDecContext_->inputBufferInfoQueue.empty(),
+                               "Buffer queue is empty, continue.");
+
+        CodecBufferInfo bufferInfo = audioDecContext_->inputBufferInfoQueue.front();
+        audioDecContext_->inputBufferInfoQueue.pop();
+        audioDecContext_->inputFrameCount++;
+        lock.unlock();
+        
+        // Check flush state;
+        std::shared_lock<std::shared_mutex> flushLock(audioDecContext_->flushMutex_, std::try_to_lock);
+        if (!flushLock.owns_lock() || audioDecContext_->isFlushing.load()) {
+            continue;
+        }
+
+        // [Start AudioReadSample]
+        // Read sample from demuxer.
+        int32_t ret = demuxer_->ReadSample(demuxer_->GetAudioTrackId(),
+                                           reinterpret_cast<OH_AVBuffer *>(bufferInfo.buffer), bufferInfo.attr);
+        CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "ReadSample failed, thread out");
+        // Check if the buffer flag include eos.
+        while (bufferInfo.attr.flags & AVCODEC_BUFFER_FLAGS_EOS) {
+            // Wait the video thread seek to first frame.
+            std::unique_lock<std::mutex> lock(audioDecContext_->endMutex);
+            isAudioWaitSeek_.store(true);
+            audioDecContext_->endCond.wait(lock);
+            int32_t ret = demuxer_->ReadSample(demuxer_->GetAudioTrackId(),
+                                           reinterpret_cast<OH_AVBuffer *>(bufferInfo.buffer), bufferInfo.attr);
+            CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "ReadSample failed, thread out");
+        }
+        isAudioWaitSeek_.store(false);
+        // [End AudioReadSample]
+
+        ret = audioDecoder_->PushInputBuffer(bufferInfo);
+        CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "Push data failed, thread out");
+    }
+    MEDIA_LOGI("AudioDecInputThread out.");
+}
