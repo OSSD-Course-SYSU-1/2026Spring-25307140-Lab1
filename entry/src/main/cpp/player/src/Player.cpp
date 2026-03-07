@@ -436,3 +436,241 @@ void Player::AudioDecInputThread()
     }
     MEDIA_LOGI("AudioDecInputThread out.");
 }
+
+void Player::AudioDecOutputThread()
+{
+    while (true) {
+        CHECK_AND_BREAK_LOG(isStarted_, "Decoder output thread out");
+        std::unique_lock<std::mutex> lock(audioDecContext_->outputMutex);
+        audioDecContext_->outputCond.wait(lock, [this]() {
+            return !isPause_ && (!isStarted_ || !audioDecContext_->outputBufferInfoQueue.empty());
+        });
+        CHECK_AND_BREAK_LOG(isStarted_, "Decoder output thread out");
+        CHECK_AND_CONTINUE_LOG(!isPause_, "not pause, continue");
+        CHECK_AND_CONTINUE_LOG(!audioDecContext_->outputBufferInfoQueue.empty(),
+                               "Buffer queue is empty, continue.");
+
+        CodecBufferInfo bufferInfo = audioDecContext_->outputBufferInfoQueue.front();
+        audioDecContext_->outputBufferInfoQueue.pop();
+        audioDecContext_->outputFrameCount++;
+        MEDIA_LOGI("Out buffer count: %{public}u, size: %{public}d, flag: %{public}u, pts: %{public}" PRId64,
+                   audioDecContext_->outputFrameCount, bufferInfo.attr.size, bufferInfo.attr.flags,
+                   bufferInfo.attr.pts);
+        uint8_t *source = OH_AVBuffer_GetAddr(reinterpret_cast<OH_AVBuffer *>(bufferInfo.buffer));
+        // Put the decoded PMC data into the queue
+        for (int i = 0; i < bufferInfo.attr.size; i++) {
+            CHECK_AND_BREAK_LOG(isStarted_, "Decoder output thread out");
+            audioDecContext_->renderQueue.push(*(source + i));
+        }
+        CHECK_AND_BREAK_LOG(isStarted_, "Decoder output thread out");
+        lock.unlock();
+        
+        // Check flush state;
+        std::shared_lock<std::shared_mutex> flushLock(audioDecContext_->flushMutex_, std::try_to_lock);
+        if (!flushLock.owns_lock() || audioDecContext_->isFlushing.load()) {
+            continue;
+        }
+
+        audioBufferPts_ = bufferInfo.attr.pts;
+        audioDecContext_->endPosAudioBufferPts = audioBufferPts_;
+        size_t bufferSize = bufferInfo.attr.size;
+        audioDecoder_->FreeOutputBuffer(bufferInfo.bufferIndex);
+
+        std::unique_lock<std::mutex> lockRender(audioDecContext_->renderMutex);
+        audioDecContext_->renderCond.wait_for(lockRender, 20ms, [this, bufferSize]() {
+            return audioDecContext_->renderQueue.size() < BALANCE_VALUE * bufferSize;
+        });
+    }
+    MEDIA_LOGI("AudioDecOutputThread out.");
+}
+
+// [Start Pause]
+int32_t Player::Pause()
+{
+    CHECK_AND_RETURN_RET_LOG(isStarted_, MEDIA_ERR_ERROR, "player do not start!");
+    // Set pause state.
+    isPause_.store(true);
+    // if the audio render, pause it.
+    if (audioRenderer_) {
+        OH_AudioRenderer_Pause(audioRenderer_);
+    }
+    return MEDIA_ERR_OK;
+}
+// [End Pause]
+
+// [Start Resume]
+int32_t Player::Resume()
+{
+    CHECK_AND_RETURN_RET_LOG(isStarted_, MEDIA_ERR_ERROR, "player do not start!");
+    // Cancel the pause state.
+    isPause_.store(false);
+    // Notify the thread to continue work.
+    if (videoDecContext_) {
+        videoDecContext_->inputCond.notify_all();
+        videoDecContext_->outputCond.notify_all();
+    }
+    if (audioDecContext_) {
+        audioDecContext_->inputCond.notify_all();
+        audioDecContext_->outputCond.notify_all();
+    }
+    // if need audio to play, continue.
+    if (audioRenderer_) {
+        OH_AudioRenderer_Start(audioRenderer_);
+    }
+    return MEDIA_ERR_OK;
+}
+// [Start Resume]
+
+// [Start SetSpeed]
+void Player::SetSpeed(float speed)
+{
+    CHECK_AND_RETURN_LOG(isStarted_, "player do not start!");
+    if (speed_ == speed) {
+        MEDIA_LOGE("Same speed value");
+        return;
+    }
+    // Set audio play speed.
+    OH_AudioRenderer_SetSpeed(audioRenderer_, speed);
+    // Set speed value for sub thread.
+    speed_ = speed;
+    audioDecContext_->speed = speed;
+}
+// [End SetSpeed]
+
+// [Start Seek]
+int32_t Player::Seek(int64_t desTime)
+{
+    isReadRenderTime_.store(false);
+    // [StartExclude Seek]
+    int64_t milliseconds = desTime * MILLISECONDS;
+    currentRenderTime_.store(milliseconds);
+    int32_t ret = demuxer_->Seek(milliseconds);
+    CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "video seek failed");
+
+    if (audioDecoder_) {
+        audioDecContext_->isFlushing.store(true);
+        audioDecContext_->ClearQueue();
+        ret = audioDecoder_->Flush(audioDecContext_);
+        CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "video seek audio flush failed");
+        audioDecContext_->isFlushing.store(false);
+        ret = audioDecoder_->Start();
+        CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "video seek start audioDecoder failed");
+    }
+    // [EndExclude Seek]
+    if (videoDecoder_) {
+        // Flush decoder, clear cache.
+        videoDecContext_->isFlushing.store(true);
+        videoDecContext_->ClearQueue();
+        ret = videoDecoder_->Flush(videoDecContext_);
+        CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "video seek video flush failed");
+        videoDecContext_->isFlushing.store(false);
+        // Restart the decoder.
+        ret = videoDecoder_->Start();
+        CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "video seek start videoDecoder failed");
+    }
+
+    // When the video is paused, continue playing after seeking.
+    if (isPause_.load()) {
+        Resume();
+    }
+
+    currentRenderTime_.store(desTime);
+    isReadRenderTime_.store(true);
+    return MEDIA_ERR_OK;
+}
+// [End Seek]
+
+void Player::StartRelease()
+{
+    if (isReleased_) {
+        return;
+    }
+    if (audioRenderer_) {
+        OH_AudioRenderer_Stop(audioRenderer_);
+    }
+    isReleased_ = true;
+    Release();
+}
+
+void Player::ReleaseThread()
+{
+    if (videoDecInputThread_ && videoDecInputThread_->joinable()) {
+        videoDecInputThread_->detach();
+        videoDecInputThread_.reset();
+    }
+    if (videoDecOutputThread_ && videoDecOutputThread_->joinable()) {
+        videoDecOutputThread_->detach();
+        videoDecOutputThread_.reset();
+    }
+    if (audioDecInputThread_ && audioDecInputThread_->joinable()) {
+        audioDecInputThread_->detach();
+        audioDecInputThread_.reset();
+    }
+    if (audioDecOutputThread_ && audioDecOutputThread_->joinable()) {
+        audioDecOutputThread_->detach();
+        audioDecOutputThread_.reset();
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_TIME));
+}
+
+// [Start Release]
+void Player::Release()
+{
+    // Set release state.
+    std::unique_lock<std::mutex> lock(mutex_);
+    isStarted_ = false;
+    isPause_ = false;
+
+    // Notify the sub thread continue and over.
+    if (videoDecContext_) {
+        videoDecContext_->inputCond.notify_all();
+        videoDecContext_->outputCond.notify_all();
+    }
+    // [StartExclude Release]
+    if (audioDecContext_) {
+        audioDecContext_->inputCond.notify_all();
+        audioDecContext_->outputCond.notify_all();
+    }
+
+    // Clear the queue
+    while (audioDecContext_ && !audioDecContext_->renderQueue.empty()) {
+        audioDecContext_->renderQueue.pop();
+    }
+    if (audioRenderer_ != nullptr) {
+        OH_AudioRenderer_Release(audioRenderer_);
+        audioRenderer_ = nullptr;
+    }
+    // [EndExclude Release]
+    ReleaseThread();
+    currentRenderTime_.store(0);
+    // Release decode resoure.
+    if (demuxer_ != nullptr) {
+        demuxer_->Release();
+        demuxer_.reset();
+    }
+    if (videoDecoder_ != nullptr) {
+        videoDecoder_->Release();
+        videoDecoder_.reset();
+    }
+    // Clear video info.
+    if (videoDecContext_ != nullptr) {
+        delete videoDecContext_;
+        videoDecContext_ = nullptr;
+    }
+    // [StartExclude Release]
+    if (audioDecoder_ != nullptr) {
+        audioDecoder_->Release();
+        audioDecoder_.reset();
+    }
+    if (audioDecContext_ != nullptr) {
+        delete audioDecContext_;
+        audioDecContext_ = nullptr;
+    }
+    if (builder_ != nullptr) {
+        OH_AudioStreamBuilder_Destroy(builder_);
+        builder_ = nullptr;
+    }
+    // [EndExclude Release]
+    lock.unlock();
+}
+// [End Release]
