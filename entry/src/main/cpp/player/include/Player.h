@@ -55,6 +55,8 @@ private:
     int32_t CreateAudioDecoder();
     int32_t CreateVideoDecoder();
     int64_t GetCurrentTime();
+    CodecBufferInfo GetBufferInfo();
+    bool AudioToVideoSync(CodecBufferInfo bufferInfo, int64_t framePosition);
     std::unique_ptr<VideoDecoder> videoDecoder_ = nullptr;
     std::shared_ptr<AudioDecoder> audioDecoder_ = nullptr;
     std::unique_ptr<Demuxer> demuxer_ = nullptr;
@@ -81,6 +83,7 @@ private:
     std::atomic<bool> isAudioWaitSeek_{false};
     std::atomic<int64_t> currentRenderTime_{0};
     float speed_ = 1.0f;
+    bool isDecoding = true;
 
     static constexpr int64_t MICROSECOND = 1000000;
     static constexpr int64_t MILLISECONDS = 1000;
