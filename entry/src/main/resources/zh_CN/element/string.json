@@ -2,7 +2,7 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "module description"
+      "value": "模块描述"
     },
     {
       "name": "EntryAbility_desc",
@@ -14,11 +14,11 @@
     },
     {
       "name": "Default_speed_text",
-      "value": "Speed"
+      "value": "倍速"
     },
     {
       "name": "Episodes",
-      "value": "Episodes"
+      "value": "选集"
     },
     {
       "name": "Video_name",
