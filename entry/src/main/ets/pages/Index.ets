@@ -16,6 +16,7 @@
 import { resourceManager } from '@kit.LocalizationKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { VideoPlayView } from '../view/VideoPlayView';
+import { VideoPlayViewModel } from '../viewmodel/VideoPlayViewModel';
 
 const VIDEO_NAMES = ['1.mp4', '2.mp4', '3.mp4'];
 const TAG = 'INDEX';
@@ -24,6 +25,7 @@ const TAG = 'INDEX';
 @Component
 struct Index {
   @State videoResources : resourceManager.RawFileDescriptor[] = [];
+  @State viewModel: VideoPlayViewModel = new VideoPlayViewModel();
 
   aboutToAppear(): void {
     try {
@@ -42,7 +44,8 @@ struct Index {
   build() {
     Column() {
       VideoPlayView({
-        videoSources: this.videoResources
+        viewModel: this.viewModel,
+        videoSources: $videoResources
       });
     }
     .width('100%')

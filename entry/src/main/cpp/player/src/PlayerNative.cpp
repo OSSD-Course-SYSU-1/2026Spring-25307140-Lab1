@@ -172,21 +172,47 @@ napi_value PlayerNative::GetRenderTime(napi_env env, napi_callback_info info)
     return result;
 }
 
+void SeekVideoWorker(napi_env env, void *data)
+{
+    CHECK_AND_RETURN_LOG(env != nullptr, "env is null");
+    AsyncCallbackInfo *asyncCallbackInfo = static_cast<AsyncCallbackInfo *>(data);
+    int32_t ret = g_player->Seek(asyncCallbackInfo->sampleInfo.durationTime);
+    SetCallBackResult(asyncCallbackInfo, ret, "Seek video finish");
+}
+
 napi_value PlayerNative::SeekVideo(napi_env env, napi_callback_info info)
 {
     CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
     CHECK_AND_RETURN_RET_LOG(g_player != nullptr, nullptr, "player is null");
+    
     int64_t currentTime = 0;
     size_t argc = 1;
     napi_value args[1] = {0};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     napi_get_value_int64(env, args[FIRST_PARAM], &currentTime);
 
-    int32_t ret = g_player->Seek(currentTime);
-    if (ret != MEDIA_ERR_OK) {
-        OH_LOG_ERROR(LOG_APP, "PlayerSample video seek failed");
-    }
-    return nullptr;
+    napi_value promise;
+    napi_deferred deferred;
+    CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_promise(env, &deferred, &promise), nullptr,
+        "SeekVideo: Create promise failed");
+    
+    AsyncCallbackInfo *asyncCallbackInfo = new AsyncCallbackInfo();
+    asyncCallbackInfo->env = env;
+    asyncCallbackInfo->asyncWork = nullptr;
+    asyncCallbackInfo->deferred = deferred;
+    asyncCallbackInfo->sampleInfo.durationTime = currentTime;
+    
+    napi_value resourceName;
+    CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_string_latin1(env, "SeekVideo", NAPI_AUTO_LENGTH, &resourceName),
+        nullptr, "SeekVideo: Create resourceName failed");
+    CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_async_work(env, nullptr, resourceName,
+        [](napi_env env, void *data) { SeekVideoWorker(env, data); },
+        [](napi_env env, napi_status status, void *data) { DealCallBack(env, data); },
+        (void *)asyncCallbackInfo, &asyncCallbackInfo->asyncWork), nullptr, "SeekVideo: Create async work failed");
+    CHECK_AND_RETURN_RET_LOG(napi_ok == napi_queue_async_work(env, asyncCallbackInfo->asyncWork), nullptr,
+        "SeekVideo: queue_async_work failed");
+    
+    return promise;
 }
 
 // [Start SwitchVideo]

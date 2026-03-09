@@ -6,6 +6,6 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "libentry.so": "file:./src/main/cpp/types/libentry"
+    "libplayer.so": "file:./src/main/cpp/types/libplayer"
   }
 }
