@@ -201,7 +201,7 @@ int32_t Player::Start()
 // [Start videoInput]
 void Player::VideoDecInputThread()
 {
-    while (isDecoding) {
+    while (isDecoding_) {
         CHECK_AND_BREAK_LOG(isStarted_, "Decoder input thread out");
         // [Start wait]
         // Use condition to wait for decoder requests for data.
@@ -332,7 +332,7 @@ bool Player::AudioToVideoSync(CodecBufferInfo bufferInfo, int64_t framePosition)
 void Player::VideoDecOutputThread()
 {
     videoInfo_.videoInfo.frameInterval = MICROSECOND / videoInfo_.videoInfo.frameRate;
-    while (isDecoding) {
+    while (isDecoding_) {
         thread_local auto lastPushTime = std::chrono::system_clock::now();
         CHECK_AND_BREAK_LOG(isStarted_, "VD Decoder output thread out");
         // Use condition to wait for decoder push data.
@@ -393,7 +393,7 @@ int64_t Player::GetCurrentTime()
 
 void Player::AudioDecInputThread()
 {
-    while (isDecoding) {
+    while (isDecoding_) {
         CHECK_AND_BREAK_LOG(isStarted_, "Decoder input thread out");
         std::unique_lock<std::mutex> lock(audioDecContext_->inputMutex);
         audioDecContext_->inputCond.wait(
@@ -439,7 +439,7 @@ void Player::AudioDecInputThread()
 
 void Player::AudioDecOutputThread()
 {
-    while (isDecoding) {
+    while (isDecoding_) {
         CHECK_AND_BREAK_LOG(isStarted_, "Decoder output thread out");
         std::unique_lock<std::mutex> lock(audioDecContext_->outputMutex);
         audioDecContext_->outputCond.wait(lock, [this]() {

@@ -22,6 +22,8 @@
 
 class PlayerNative {
 public:
+    static napi_value CreatePlayer(napi_env env, napi_callback_info info);
+    static napi_value ReleasePlayer(napi_env env, napi_callback_info info);
     static napi_value Init(napi_env env, napi_callback_info info);
     static napi_value Play(napi_env env, napi_callback_info info);
     static napi_value Pause(napi_env env, napi_callback_info info);
@@ -29,6 +31,5 @@ public:
     static napi_value SetSpeed(napi_env env, napi_callback_info info);
     static napi_value GetRenderTime(napi_env env, napi_callback_info info);
     static napi_value SeekVideo(napi_env env, napi_callback_info info);
-    static napi_value SwitchVideo(napi_env env, napi_callback_info info);
 };
 #endif // VIDEOPLAYBACKCONTROLONSURFACE_PLAYERNATIVE_H
