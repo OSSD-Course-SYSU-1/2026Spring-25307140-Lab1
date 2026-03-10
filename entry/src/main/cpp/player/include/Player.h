@@ -83,7 +83,7 @@ private:
     std::atomic<bool> isAudioWaitSeek_{false};
     std::atomic<int64_t> currentRenderTime_{0};
     float speed_ = 1.0f;
-    bool isDecoding = true;
+    bool isDecoding_ = true;
 
     static constexpr int64_t MICROSECOND = 1000000;
     static constexpr int64_t MILLISECONDS = 1000;

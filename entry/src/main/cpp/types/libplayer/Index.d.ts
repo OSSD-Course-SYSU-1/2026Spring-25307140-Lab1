@@ -21,19 +21,24 @@ export class Response {
   durationTime: number;
 }
 
-export const play: () => void;
+export const createPlayer: () => bigint;
 
-export const pause: () => void;
+export const releasePlayer: (objAddr: bigint) => void;
 
-export const resume: () => void;
+export const play: (objAddr: bigint) => void;
 
-export const getRenderTime: () => number;
+export const pause: (objAddr: bigint) => void;
 
-export const setSpeed: (speed: number) => void;
+export const resume: (objAddr: bigint) => void;
 
-export const seekVideo: (desTime: number) => Promise<void>;
+export const getRenderTime: (objAddr: bigint) => number;
 
-export const switchVideo: (
+export const setSpeed: (objAddr: bigint, speed: number) => void;
+
+export const seekVideo: (objAddr: bigint, desTime: number) => Promise<void>;
+
+export const init: (
+  objAddr: bigint,
   inputFileFd: number,
   inputFileOffset: number,
   inputFileSize: number

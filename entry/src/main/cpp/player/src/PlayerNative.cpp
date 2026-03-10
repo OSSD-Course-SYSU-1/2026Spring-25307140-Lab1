@@ -28,8 +28,7 @@
 constexpr int FIRST_PARAM = 0;
 constexpr int SECOND_PARAM = 1;
 constexpr int THIRD_PARAM = 2;
-
-static Player *g_player = nullptr;
+constexpr int FOURTH_PARAM = 3;
 
 struct AsyncCallbackInfo {
     napi_env env;
@@ -38,6 +37,7 @@ struct AsyncCallbackInfo {
     int32_t resultCode = -1;
     std::string resultStr = "";
     SampleInfo sampleInfo;
+    int64_t addrValue;
 };
 
 void SetCallBackResult(AsyncCallbackInfo *asyncCallbackInfo, int32_t code, std::string str)
@@ -72,14 +72,50 @@ void DealCallBack(napi_env env, void *data)
     delete asyncCallbackInfo;
 }
 
+napi_value PlayerNative::CreatePlayer(napi_env env, napi_callback_info info)
+{
+    MEDIA_LOGI("CreatePlayer: enter");
+    Player *player = new Player();
+    int64_t addrValue = reinterpret_cast<int64_t>(player);
+    
+    napi_value result;
+    napi_create_bigint_int64(env, addrValue, &result);
+    MEDIA_LOGI("CreatePlayer: exit, addrValue=%{public}ld", addrValue);
+    return result;
+}
+
+napi_value PlayerNative::ReleasePlayer(napi_env env, napi_callback_info info)
+{
+    MEDIA_LOGI("ReleasePlayer: enter");
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int64_t addrValue = 0;
+    bool flag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &flag);
+    
+    if (flag) {
+        Player *player = reinterpret_cast<Player *>(addrValue);
+        if (player != nullptr) {
+            player->StartRelease();
+            delete player;
+            MEDIA_LOGI("ReleasePlayer: player deleted, addrValue=%{public}ld", addrValue);
+        }
+    }
+    
+    return nullptr;
+}
+
 void InitializePlayer(napi_env env, void *data)
 {
     CHECK_AND_RETURN_LOG(env != nullptr, "env or info is null");
     AsyncCallbackInfo *asyncCallbackInfo = static_cast<AsyncCallbackInfo *>(data);
-    if (g_player == nullptr) {
-        g_player = new Player();
-    }
-    int32_t ret = g_player->Init(asyncCallbackInfo->sampleInfo);
+    
+    Player *player = reinterpret_cast<Player *>(asyncCallbackInfo->addrValue);
+    CHECK_AND_RETURN_LOG(player != nullptr, "player is null");
+    
+    int32_t ret = player->Init(asyncCallbackInfo->sampleInfo);
     SetCallBackResult(asyncCallbackInfo, ret, "Player init finish");
 }
 
@@ -90,9 +126,12 @@ napi_value PlayerNative::Init(napi_env env, napi_callback_info info)
     napi_value args[4] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
-    napi_get_value_int32(env, args[FIRST_PARAM], &sampleInfo.inputFd);
-    napi_get_value_int64(env, args[SECOND_PARAM], &sampleInfo.inputFileOffset);
-    napi_get_value_int64(env, args[THIRD_PARAM], &sampleInfo.inputFileSize);
+    int64_t addrValue = 0;
+    bool flag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &flag);
+    napi_get_value_int32(env, args[SECOND_PARAM], &sampleInfo.inputFd);
+    napi_get_value_int64(env, args[THIRD_PARAM], &sampleInfo.inputFileOffset);
+    napi_get_value_int64(env, args[FOURTH_PARAM], &sampleInfo.inputFileSize);
     
     napi_value promise;
     napi_deferred deferred;
@@ -103,6 +142,7 @@ napi_value PlayerNative::Init(napi_env env, napi_callback_info info)
     asyncCallbackInfo->asyncWork = nullptr;
     asyncCallbackInfo->deferred = deferred;
     asyncCallbackInfo->sampleInfo = sampleInfo;
+    asyncCallbackInfo->addrValue = addrValue;
     napi_value resourceName;
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_string_latin1(env, "Initialize", NAPI_AUTO_LENGTH, &resourceName),
         nullptr, "Initialize: Create resourceName failed");
@@ -118,10 +158,22 @@ napi_value PlayerNative::Init(napi_env env, napi_callback_info info)
 napi_value PlayerNative::Play(napi_env env, napi_callback_info info)
 {
     CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
-    CHECK_AND_RETURN_RET_LOG(g_player != nullptr, nullptr, "player is null");
-    int32_t ret = g_player->Start();
+    
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int64_t addrValue = 0;
+    bool flag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &flag);
+    CHECK_AND_RETURN_RET_LOG(flag, nullptr, "player id is invalid");
+    
+    Player *player = reinterpret_cast<Player *>(addrValue);
+    CHECK_AND_RETURN_RET_LOG(player != nullptr, nullptr, "player is null");
+    
+    int32_t ret = player->Start();
     if (ret != MEDIA_ERR_OK) {
-        MEDIA_LOGE("Player pause failed.");
+        MEDIA_LOGE("Player play failed.");
     }
     return nullptr;
 }
@@ -129,8 +181,20 @@ napi_value PlayerNative::Play(napi_env env, napi_callback_info info)
 napi_value PlayerNative::Pause(napi_env env, napi_callback_info info)
 {
     CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
-    CHECK_AND_RETURN_RET_LOG(g_player != nullptr, nullptr, "player is null");
-    int32_t ret = g_player->Pause();
+    
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int64_t addrValue = 0;
+    bool flag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &flag);
+    CHECK_AND_RETURN_RET_LOG(flag, nullptr, "player id is invalid");
+    
+    Player *player = reinterpret_cast<Player *>(addrValue);
+    CHECK_AND_RETURN_RET_LOG(player != nullptr, nullptr, "player is null");
+    
+    int32_t ret = player->Pause();
     if (ret != MEDIA_ERR_OK) {
         MEDIA_LOGE("Player pause failed.");
     }
@@ -140,10 +204,22 @@ napi_value PlayerNative::Pause(napi_env env, napi_callback_info info)
 napi_value PlayerNative::Resume(napi_env env, napi_callback_info info)
 {
     CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
-    CHECK_AND_RETURN_RET_LOG(g_player != nullptr, nullptr, "player is null");
-    int32_t ret = g_player->Resume();
+    
+    size_t argc = 1;
+    napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int64_t addrValue = 0;
+    bool flag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &flag);
+    CHECK_AND_RETURN_RET_LOG(flag, nullptr, "player id is invalid");
+    
+    Player *player = reinterpret_cast<Player *>(addrValue);
+    CHECK_AND_RETURN_RET_LOG(player != nullptr, nullptr, "player is null");
+    
+    int32_t ret = player->Resume();
     if (ret != MEDIA_ERR_OK) {
-        MEDIA_LOGE("Player pause failed.");
+        MEDIA_LOGE("Player resume failed.");
     }
     return nullptr;
 }
@@ -151,22 +227,42 @@ napi_value PlayerNative::Resume(napi_env env, napi_callback_info info)
 napi_value PlayerNative::SetSpeed(napi_env env, napi_callback_info info)
 {
     CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
-    CHECK_AND_RETURN_RET_LOG(g_player != nullptr, nullptr, "player is null");
-    double speed;
-    size_t argc = 1;
-    napi_value args[1] = {nullptr};
+    
+    size_t argc = 2;
+       napi_value args[2] = {nullptr};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
-    napi_get_value_double(env, args[FIRST_PARAM], &speed);
-    g_player->SetSpeed(static_cast<float>(speed));
+    int64_t addrValue = 0;
+    bool addrFlag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &addrFlag);
+    CHECK_AND_RETURN_RET_LOG(addrFlag, nullptr, "player id is invalid");
+    
+    Player *player = reinterpret_cast<Player *>(addrValue);
+    CHECK_AND_RETURN_RET_LOG(player != nullptr, nullptr, "player is null");
+    
+    double speed;
+    napi_get_value_double(env, args[SECOND_PARAM], &speed);
+    player->SetSpeed(static_cast<float>(speed));
     return nullptr;
 }
 
 napi_value PlayerNative::GetRenderTime(napi_env env, napi_callback_info info)
 {
     CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
-    CHECK_AND_RETURN_RET_LOG(g_player != nullptr, nullptr, "player is null");
-    int64_t res = g_player->GetRenderTimeStamp();
+    
+    size_t argc = 1;
+       napi_value args[1] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int64_t addrValue = 0;
+    bool flag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &flag);
+    CHECK_AND_RETURN_RET_LOG(flag, nullptr, "player id is invalid");
+    
+    Player *player = reinterpret_cast<Player *>(addrValue);
+    CHECK_AND_RETURN_RET_LOG(player != nullptr, nullptr, "player is null");
+    
+    int64_t res = player->GetRenderTimeStamp();
     napi_value result;
     napi_create_int64(env, res, &result);
     return result;
@@ -176,20 +272,29 @@ void SeekVideoWorker(napi_env env, void *data)
 {
     CHECK_AND_RETURN_LOG(env != nullptr, "env is null");
     AsyncCallbackInfo *asyncCallbackInfo = static_cast<AsyncCallbackInfo *>(data);
-    int32_t ret = g_player->Seek(asyncCallbackInfo->sampleInfo.durationTime);
+    
+    Player *player = reinterpret_cast<Player *>(asyncCallbackInfo->addrValue);
+    CHECK_AND_RETURN_LOG(player != nullptr, "player is null");
+    
+    int32_t ret = player->Seek(asyncCallbackInfo->sampleInfo.durationTime);
     SetCallBackResult(asyncCallbackInfo, ret, "Seek video finish");
 }
 
 napi_value PlayerNative::SeekVideo(napi_env env, napi_callback_info info)
 {
     CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
-    CHECK_AND_RETURN_RET_LOG(g_player != nullptr, nullptr, "player is null");
+    
+    size_t argc = 2;
+    napi_value args[2] = {nullptr};
+    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+    int64_t addrValue = 0;
+    bool addrFlag = false;
+    napi_get_value_bigint_int64(env, args[FIRST_PARAM], &addrValue, &addrFlag);
+    CHECK_AND_RETURN_RET_LOG(addrFlag, nullptr, "player id is invalid");
     
     int64_t currentTime = 0;
-    size_t argc = 1;
-    napi_value args[1] = {0};
-    napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
-    napi_get_value_int64(env, args[FIRST_PARAM], &currentTime);
+    napi_get_value_int64(env, args[SECOND_PARAM], &currentTime);
 
     napi_value promise;
     napi_deferred deferred;
@@ -201,6 +306,7 @@ napi_value PlayerNative::SeekVideo(napi_env env, napi_callback_info info)
     asyncCallbackInfo->asyncWork = nullptr;
     asyncCallbackInfo->deferred = deferred;
     asyncCallbackInfo->sampleInfo.durationTime = currentTime;
+    asyncCallbackInfo->addrValue = addrValue;
     
     napi_value resourceName;
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_string_latin1(env, "SeekVideo", NAPI_AUTO_LENGTH, &resourceName),
@@ -215,31 +321,19 @@ napi_value PlayerNative::SeekVideo(napi_env env, napi_callback_info info)
     return promise;
 }
 
-// [Start SwitchVideo]
-napi_value PlayerNative::SwitchVideo(napi_env env, napi_callback_info info)
-{
-    CHECK_AND_RETURN_RET_LOG(env != nullptr && info != nullptr, nullptr, "env or info is null");
-    // delete all resource
-    if (g_player != nullptr) {
-        g_player->StartRelease();
-        delete g_player;
-        g_player = nullptr;
-    }
-    return Init(env, info);
-}
-// [End SwitchVideo]
-
 EXTERN_C_START
 static napi_value Init(napi_env env, napi_value exports)
 {
     napi_property_descriptor desc[] = {
+        {"createPlayer", nullptr, PlayerNative::CreatePlayer, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"releasePlayer", nullptr, PlayerNative::ReleasePlayer, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"play", nullptr, PlayerNative::Play, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"pause", nullptr, PlayerNative::Pause, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"resume", nullptr, PlayerNative::Resume, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getRenderTime", nullptr, PlayerNative::GetRenderTime, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setSpeed", nullptr, PlayerNative::SetSpeed, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"seekVideo", nullptr, PlayerNative::SeekVideo, nullptr, nullptr, nullptr, napi_default, nullptr},
-        {"switchVideo", nullptr, PlayerNative::SwitchVideo, nullptr, nullptr, nullptr, napi_default, nullptr}};
+        {"init", nullptr, PlayerNative::Init, nullptr, nullptr, nullptr, napi_default, nullptr}};
     XComponentManager::GetInstance()->Export(env, exports);
     napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc);
     return exports;

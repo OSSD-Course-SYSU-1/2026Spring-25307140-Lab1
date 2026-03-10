@@ -15,24 +15,13 @@
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
-import { taskpool } from '@kit.ArkTS';
 import { resourceManager } from '@kit.LocalizationKit';
 import { PlayerState } from '../model/PlayerStateModel';
 import { CommonConstants as Const } from '../common/CommonConstants';
-import player, { getRenderTime } from 'libplayer.so';
+import player from 'libplayer.so';
 
 const DOMAIN = 0x0000;
 const TAG = 'VideoPlayViewModel';
-
-@Concurrent
-function periodicFunc(): void {
-  try {
-    let currentTime = getRenderTime();
-    taskpool.Task.sendData(currentTime);
-  } catch (error) {
-    hilog.error(0x0000, 'periodicFunc', `sendData catch error, code: ${error.code}, message: ${error.message}`);
-  }
-}
 
 @Observed
 export class VideoPlayViewModel {
@@ -48,7 +37,9 @@ export class VideoPlayViewModel {
   @Track playState: PlayerState = PlayerState.IDLE;
 
   public videoSources: resourceManager.RawFileDescriptor[] = [];
-  private taskArray: Array<taskpool.Task> = [];
+  public nativePlayerObj: bigint = BigInt(0);
+  
+  private timerId: number = -1;
   private hostContext: Context | undefined = undefined;
 
   setUIContext(uiContext: UIContext): void {
@@ -88,8 +79,8 @@ export class VideoPlayViewModel {
       return;
     }
     
-    this.hostContext.eventHub.on('onBackground', this.onBackground);
-    this.hostContext.eventHub.on('onForeground', this.onForeground);
+    this.hostContext.eventHub.on('onBackground', () => this.onBackground());
+    this.hostContext.eventHub.on('onForeground', () => this.onForeground());
   }
 
   unregisterEventListeners(): void {
@@ -102,46 +93,53 @@ export class VideoPlayViewModel {
   }
 
   startPeriodicTask(): void {
-    this.taskArray.length = 0;
-    this.taskArray.push(new taskpool.Task(periodicFunc));
-    this.taskArray[0].onReceiveData((value: number) => {
-      if (!this.isSeek) {
-        this.currentTime = value / Const.TIME_RATIO;
+    this.stopPeriodicTask();
+    this.timerId = setInterval(() => {
+      if (this.nativePlayerObj === BigInt(0)) {
+        return;
       }
-    });
-    try {
-      taskpool.executePeriodically(Const.TIME_INTERVAL, this.taskArray[0], taskpool.Priority.HIGH);
-    } catch (error) {
-      hilog.error(DOMAIN, TAG, `executePeriodically failed: ${error.code}, message: ${error.message}`);
-    }
+      if (!this.isSeek) {
+        try {
+          const renderTime = player.getRenderTime(this.nativePlayerObj);
+          this.currentTime = renderTime / Const.TIME_RATIO;
+        } catch (error) {
+          hilog.error(DOMAIN, TAG, `getRenderTime failed: ${error.code}, message: ${error.message}`);
+        }
+      }
+    }, Const.TIME_INTERVAL);
   }
 
   stopPeriodicTask(): void {
-    if (this.taskArray.length > 0) {
-      try {
-        taskpool.cancel(this.taskArray[0]);
-      } catch (error) {
-        hilog.error(DOMAIN, TAG, `cancel failed: ${error.code}, message: ${error.message}`);
-      }
+    if (this.timerId !== -1) {
+      clearInterval(this.timerId);
+      this.timerId = -1;
     }
   }
 
   onBackground(): void {
-    player.pause();
+    if (this.nativePlayerObj !== BigInt(0)) {
+      player.pause(this.nativePlayerObj);
+    }
   }
 
   onForeground(): void {
-    if (AppStorage.get<PlayerState>('playState') === PlayerState.PLAYING) {
-      player.resume();
+    if (this.playState === PlayerState.PLAYING) {
+      if (this.nativePlayerObj !== BigInt(0)) {
+        player.resume(this.nativePlayerObj);
+      }
     }
   }
 
   togglePlayPause(playState: PlayerState): PlayerState {
+    if (this.nativePlayerObj === BigInt(0)) {
+      return playState;
+    }
+    
     if (playState === PlayerState.PLAYING) {
-      player.pause();
+      player.pause(this.nativePlayerObj);
       return PlayerState.PAUSE;
     } else if (playState === PlayerState.PAUSE) {
-      player.resume();
+      player.resume(this.nativePlayerObj);
       return PlayerState.PLAYING;
     }
     return playState;
@@ -162,8 +160,12 @@ export class VideoPlayViewModel {
   }
 
   async performSeek(value: number): Promise<void> {
+    if (this.nativePlayerObj === BigInt(0)) {
+      return;
+    }
+    
     try {
-      await player.seekVideo(value);
+      await player.seekVideo(this.nativePlayerObj, value);
       setTimeout(() => {
         this.isSeek = false;
       }, Const.RELOAD_TIME);
@@ -185,7 +187,9 @@ export class VideoPlayViewModel {
   onSpeedSelected(speed: number, index: number): void {
     if (this.chooseSpeed !== speed) {
       this.chooseSpeed = speed;
-      player.setSpeed(this.chooseSpeed);
+      if (this.nativePlayerObj !== BigInt(0)) {
+        player.setSpeed(this.nativePlayerObj, speed);
+      }
       this.speedText = Const.VIDEO_SPEED_TEXT_ARR[index];
       this.isSpeedListVisible = false;
     }
@@ -200,7 +204,7 @@ export class VideoPlayViewModel {
     this.durationTime = 0;
     this.chooseNumber = index;
     this.isUse = false;
-
+    
     if (!rawDes) {
       hilog.error(DOMAIN, TAG, 'player inputFile is null');
       this.isSwitchEnable = true;
@@ -208,31 +212,48 @@ export class VideoPlayViewModel {
     }
     
     try {
-      const data = await player.switchVideo(rawDes.fd, rawDes.offset, rawDes.length);
+      await this.releasePlayer();
+      this.nativePlayerObj = player.createPlayer();
+      const data = await player.init(this.nativePlayerObj, rawDes.fd, rawDes.offset, rawDes.length);
       
       if (data.code === 0) {
-        player.play();
         this.durationTime = data.durationTime / Const.TIME_RATIO;
         this.isUse = true;
         this.isSwitchEnable = true;
+        
+        player.play(this.nativePlayerObj);
         return PlayerState.PLAYING;
       } else {
         hilog.error(DOMAIN, TAG, 'player init failed, err code is ' + data.code);
+        await this.releasePlayer();
       }
       
       this.isSwitchEnable = true;
     } catch (error) {
       hilog.error(DOMAIN, TAG, `Switch video failed: ${error.code}, message: ${error.message}`);
+      await this.releasePlayer();
       this.isSwitchEnable = true;
     }
     
     return null;
   }
 
+  async releasePlayer(): Promise<void> {
+    if (this.nativePlayerObj !== BigInt(0)) {
+      try {
+        player.releasePlayer(this.nativePlayerObj);
+        this.nativePlayerObj = BigInt(0);
+      } catch (error) {
+        hilog.error(DOMAIN, TAG, `Release player failed: ${error.code}, message: ${error.message}`);
+      }
+    }
+  }
+
   cleanup(): void {
     try {
       this.stopPeriodicTask();
       this.unregisterEventListeners();
+      this.releasePlayer();
     } catch (error) {
       hilog.error(0x0000, TAG, `cleanup catch error, code: ${error.code}, message: ${error.message}`);
     }

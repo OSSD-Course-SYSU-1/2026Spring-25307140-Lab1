@@ -15,11 +15,11 @@
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { resourceManager } from '@kit.LocalizationKit';
+import { window } from '@kit.ArkUI';
 import { getShowTime } from '../common/TimeUtils';
 import { PlayerState } from '../model/PlayerStateModel';
 import { CommonConstants as Const } from '../common/CommonConstants';
 import { VideoPlayViewModel } from '../viewmodel/VideoPlayViewModel';
-import { window } from '@kit.ArkUI';
 
 const DOMAIN = 0xFF00;
 const TAG = 'VideoPlayView';
