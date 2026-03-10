@@ -79,8 +79,8 @@ int32_t VideoDecoder::Configure(const SampleInfo &sampleInfo)
     CHECK_AND_RETURN_RET_LOG(format != nullptr, MEDIA_ERR_ERROR, "AVFormat create failed");
     
     OH_AVFormat_SetIntValue(format, OH_MD_KEY_ROTATION, sampleInfo.videoInfo.videoRotation);
-    OH_AVFormat_SetIntValue(format, OH_MD_KEY_HEIGHT, sampleInfo.videoInfo.videoWidth);
-    OH_AVFormat_SetIntValue(format, OH_MD_KEY_WIDTH, sampleInfo.videoInfo.videoHeight);
+    OH_AVFormat_SetIntValue(format, OH_MD_KEY_HEIGHT, sampleInfo.videoInfo.videoHeight);
+    OH_AVFormat_SetIntValue(format, OH_MD_KEY_WIDTH, sampleInfo.videoInfo.videoWidth);
     OH_AVFormat_SetDoubleValue(format, OH_MD_KEY_FRAME_RATE, sampleInfo.videoInfo.frameRate);
     OH_AVFormat_SetIntValue(format, OH_MD_KEY_PIXEL_FORMAT, sampleInfo.videoInfo.pixelFormat);
 

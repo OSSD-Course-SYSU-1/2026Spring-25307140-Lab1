@@ -54,8 +54,9 @@ OH_AudioData_Callback_Result CodecCallback::OnRenderWriteData(
         codecUserData->sampleInfo->audioInfo.audioChannelCount /
         BYTES_PER_SAMPLE_2;
 
+    size_t renderQueueSize = codecUserData->renderQueue.size();
     lock.unlock();
-    if (codecUserData->renderQueue.size() < audioDataSize) {
+    if (renderQueueSize < audioDataSize) {
         codecUserData->renderCond.notify_all();
     }
     return AUDIO_DATA_CALLBACK_RESULT_VALID;

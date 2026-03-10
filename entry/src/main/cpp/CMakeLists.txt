@@ -12,15 +12,15 @@ endif()
 include_directories(${NATIVERENDER_ROOT_PATH}
                     ${NATIVERENDER_ROOT_PATH}/player/include
                     ${NATIVERENDER_ROOT_PATH}/common/include
-                    ${NATIVERENDER_ROOT_PATH}/capbilities/include
+                    ${NATIVERENDER_ROOT_PATH}/capabilities/include
                     ${NATIVERENDER_ROOT_PATH}/render/include)
 
 add_library(player SHARED player/src/PlayerNative.cpp
                           player/src/Player.cpp
-                          capbilities/src/CodecCallback.cpp
-                          capbilities/src/AudioDecoder.cpp
-                          capbilities/src/VideoDecoder.cpp
-                          capbilities/src/Demuxer.cpp
+                          capabilities/src/CodecCallback.cpp
+                          capabilities/src/AudioDecoder.cpp
+                          capabilities/src/VideoDecoder.cpp
+                          capabilities/src/Demuxer.cpp
                           render/src/XComponentManager.cpp
                           render/src/XComponentRender.cpp)
 

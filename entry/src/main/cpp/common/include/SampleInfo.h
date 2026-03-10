@@ -25,11 +25,11 @@
 #include "AudioSampleInfo.h"
 
 struct SampleInfo {
-    int32_t inputFd = -1;        // input video file fd.
-    int64_t inputFileOffset = 0; // input video file offset.
-    int64_t inputFileSize = 0;   // input video file size.
+    int32_t inputFd = -1;        // Input video file fd.
+    int64_t inputFileOffset = 0; // Input video file offset.
+    int64_t inputFileSize = 0;   // Input video file size.
     int64_t durationTime = 0;
-    int64_t bitrate = 10 * 1024 * 1024; // 10Mbps;
+    int64_t bitrate = 10 * 1024 * 1024; // 10Mbps.
 
     VideoSampleInfo videoInfo;
     AudioSampleInfo audioInfo;

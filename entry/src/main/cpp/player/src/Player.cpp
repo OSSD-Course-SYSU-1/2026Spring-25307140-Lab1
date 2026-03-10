@@ -526,9 +526,15 @@ void Player::SetSpeed(float speed)
 {
     CHECK_AND_RETURN_LOG(isStarted_, "player do not start!");
     if (speed_ == speed) {
-        MEDIA_LOGE("Same speed value");
+        MEDIA_LOGI("Same speed value");
         return;
     }
+
+    if (!audioDecContext_ || !audioRenderer_) {
+        MEDIA_LOGE("Audio ptr is nullptr");
+        return;
+    }
+
     // Set audio play speed.
     OH_AudioRenderer_SetSpeed(audioRenderer_, speed);
     // Set speed value for sub thread.
