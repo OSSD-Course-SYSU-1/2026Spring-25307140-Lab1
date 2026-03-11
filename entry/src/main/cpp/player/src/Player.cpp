@@ -641,13 +641,14 @@ void Player::Release()
     while (audioDecContext_ && !audioDecContext_->renderQueue.empty()) {
         audioDecContext_->renderQueue.pop();
     }
+    // [EndExclude Release]
+    ReleaseThread();
+    currentRenderTime_.store(0);
+    
     if (audioRenderer_ != nullptr) {
         OH_AudioRenderer_Release(audioRenderer_);
         audioRenderer_ = nullptr;
     }
-    // [EndExclude Release]
-    ReleaseThread();
-    currentRenderTime_.store(0);
     // Release decode resoure.
     if (demuxer_ != nullptr) {
         demuxer_->Release();

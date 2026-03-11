@@ -27,7 +27,7 @@ XComponentManager XComponentManager::XComponentManager_;
 
 XComponentManager::~XComponentManager()
 {
-    OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "Callback", "~PluginManager");
+    OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "Callback", "~XComponentManager");
     for (auto iter = nativeXComponentSet_.begin(); iter != nativeXComponentSet_.end();) {
         if (*iter != nullptr) {
             delete *iter;
@@ -37,6 +37,11 @@ XComponentManager::~XComponentManager()
         }
     }
     nativeXComponentSet_.clear();
+    
+    if (nativeWindow_) {
+        delete nativeWindow_;
+        nativeWindow_ = nullptr;
+    }
 }
 
 void XComponentManager::Export(napi_env env, napi_value exports)

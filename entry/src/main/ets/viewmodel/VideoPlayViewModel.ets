@@ -249,11 +249,11 @@ export class VideoPlayViewModel {
     }
   }
 
-  cleanup(): void {
+  async cleanup(): Promise<void> {
     try {
       this.stopPeriodicTask();
       this.unregisterEventListeners();
-      this.releasePlayer();
+      await this.releasePlayer();
     } catch (error) {
       hilog.error(0x0000, TAG, `cleanup catch error, code: ${error.code}, message: ${error.message}`);
     }

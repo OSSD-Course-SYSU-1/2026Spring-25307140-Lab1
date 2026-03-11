@@ -118,11 +118,11 @@ void XComponentRender::Export(napi_env env, napi_value exports)
 
 void XComponentRender::Release(OH_NativeXComponent *nativeXComponent)
 {
-    XComponentRender *render = XComponentRender::GetInstance(nativeXComponent);
-    if (render != nullptr) {
-        delete render;
-        render = nullptr;
-        instance_.erase(instance_.find(nativeXComponent));
+    auto it = instance_.find(nativeXComponent);
+    if (it != instance_.end()) {
+        delete it->second;
+        it->second = nullptr;
+        instance_.erase(it);
     }
 }
 

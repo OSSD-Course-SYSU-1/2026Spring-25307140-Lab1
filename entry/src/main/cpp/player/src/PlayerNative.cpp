@@ -137,7 +137,7 @@ napi_value PlayerNative::Init(napi_env env, napi_callback_info info)
     napi_deferred deferred;
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_promise(env, &deferred, &promise), nullptr,
         "Initialize: Create promise failed");
-    AsyncCallbackInfo *asyncCallbackInfo = new AsyncCallbackInfo();
+    auto asyncCallbackInfo = std::make_unique<AsyncCallbackInfo>();
     asyncCallbackInfo->env = env;
     asyncCallbackInfo->asyncWork = nullptr;
     asyncCallbackInfo->deferred = deferred;
@@ -149,9 +149,11 @@ napi_value PlayerNative::Init(napi_env env, napi_callback_info info)
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_async_work(env, nullptr, resourceName,
         [](napi_env env, void *data) { InitializePlayer(env, data); },
         [](napi_env env, napi_status status, void *data) { DealCallBack(env, data); },
-        (void *)asyncCallbackInfo, &asyncCallbackInfo->asyncWork), nullptr, "Initialize: Create async work failed");
+        static_cast<void *>(asyncCallbackInfo.get()), &asyncCallbackInfo->asyncWork), nullptr,
+        "Initialize: Create async work failed");
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_queue_async_work(env, asyncCallbackInfo->asyncWork), nullptr,
         "Initialize: queue_async_work failed");
+    asyncCallbackInfo.release();
     return promise;
 }
 
@@ -301,7 +303,7 @@ napi_value PlayerNative::SeekVideo(napi_env env, napi_callback_info info)
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_promise(env, &deferred, &promise), nullptr,
         "SeekVideo: Create promise failed");
     
-    AsyncCallbackInfo *asyncCallbackInfo = new AsyncCallbackInfo();
+    auto asyncCallbackInfo = std::make_unique<AsyncCallbackInfo>();
     asyncCallbackInfo->env = env;
     asyncCallbackInfo->asyncWork = nullptr;
     asyncCallbackInfo->deferred = deferred;
@@ -314,9 +316,11 @@ napi_value PlayerNative::SeekVideo(napi_env env, napi_callback_info info)
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_create_async_work(env, nullptr, resourceName,
         [](napi_env env, void *data) { SeekVideoWorker(env, data); },
         [](napi_env env, napi_status status, void *data) { DealCallBack(env, data); },
-        (void *)asyncCallbackInfo, &asyncCallbackInfo->asyncWork), nullptr, "SeekVideo: Create async work failed");
+        static_cast<void *>(asyncCallbackInfo.get()), &asyncCallbackInfo->asyncWork), nullptr,
+        "SeekVideo: Create async work failed");
     CHECK_AND_RETURN_RET_LOG(napi_ok == napi_queue_async_work(env, asyncCallbackInfo->asyncWork), nullptr,
         "SeekVideo: queue_async_work failed");
+    asyncCallbackInfo.release();
     
     return promise;
 }

@@ -150,9 +150,10 @@ int32_t VideoDecoder::RenderOutputBuffer(uint32_t bufferIndex, bool render)
 
 int32_t VideoDecoder::Flush(CodecUserData *userdata)
 {
+    CHECK_AND_RETURN_RET_LOG(userdata != nullptr, MEDIA_ERR_ERROR, "Invalid userdata ptr");                                       
     std::unique_lock<std::shared_mutex> flushLock(userdata->flushMutex_);
     int32_t ret = OH_VideoDecoder_Flush(decoder_);
-    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "Set surface failed, ret: %{public}d", ret);
+    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "flush failed, ret: %{public}d", ret);
     flushLock.unlock();
     return MEDIA_ERR_OK;
 }
