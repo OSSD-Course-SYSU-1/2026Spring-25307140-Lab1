@@ -83,6 +83,8 @@ void DispatchTouchEventCB(OH_NativeXComponent *nativeXComponent, void *window)
     XComponentRender *render = XComponentRender::GetInstance(nativeXComponent);
     if (render != nullptr) {
         render->OnTouchEvent(nativeXComponent, window);
+    } else {
+        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "Callback", "DispatchTouchEventCB: render is nullptr");
     }
 }
 

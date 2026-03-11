@@ -77,7 +77,6 @@ void XComponentManager::SetNativeXComponent(OH_NativeXComponent *nativeXComponen
 
     if (nativeXComponentSet_.find(nativeXComponent) == nativeXComponentSet_.end()) {
         nativeXComponentSet_.insert(nativeXComponent);
-        return;
     }
 }
 

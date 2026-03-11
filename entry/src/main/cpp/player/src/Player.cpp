@@ -601,22 +601,21 @@ void Player::StartRelease()
 void Player::ReleaseThread()
 {
     if (videoDecInputThread_ && videoDecInputThread_->joinable()) {
-        videoDecInputThread_->detach();
+        videoDecInputThread_->join();
         videoDecInputThread_.reset();
     }
     if (videoDecOutputThread_ && videoDecOutputThread_->joinable()) {
-        videoDecOutputThread_->detach();
+        videoDecOutputThread_->join();
         videoDecOutputThread_.reset();
     }
     if (audioDecInputThread_ && audioDecInputThread_->joinable()) {
-        audioDecInputThread_->detach();
+        audioDecInputThread_->join();
         audioDecInputThread_.reset();
     }
     if (audioDecOutputThread_ && audioDecOutputThread_->joinable()) {
-        audioDecOutputThread_->detach();
+        audioDecOutputThread_->join();
         audioDecOutputThread_.reset();
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(WAIT_TIME));
 }
 
 // [Start Release]
