@@ -106,13 +106,13 @@ XComponentRender *XComponentRender::GetInstance(OH_NativeXComponent *nativeXComp
 void XComponentRender::Export(napi_env env, napi_value exports)
 {
     if ((env == nullptr) || (exports == nullptr)) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "PluginRender", "Export: env or exports is null");
+        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "XComponentRender", "Export: env or exports is null");
         return;
     }
 
     napi_property_descriptor desc[] = {};
     if (napi_define_properties(env, exports, sizeof(desc) / sizeof(desc[0]), desc) != napi_ok) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "PluginRender", "Export: napi_define_properties failed");
+        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "XComponentRender", "Export: napi_define_properties failed");
     }
 }
 

@@ -90,10 +90,9 @@ int32_t VideoDecoder::Configure(const SampleInfo &sampleInfo)
     MEDIA_LOGI("====== VideoDecoder config ======");
 
     int ret = OH_VideoDecoder_Configure(decoder_, format);
-    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "Config failed, ret: %{public}d", ret);
     OH_AVFormat_Destroy(format);
     format = nullptr;
-
+    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "Config failed, ret: %{public}d", ret);
     return MEDIA_ERR_OK;
 }
 
@@ -150,7 +149,7 @@ int32_t VideoDecoder::RenderOutputBuffer(uint32_t bufferIndex, bool render)
 
 int32_t VideoDecoder::Flush(CodecUserData *userdata)
 {
-    CHECK_AND_RETURN_RET_LOG(userdata != nullptr, MEDIA_ERR_ERROR, "Invalid userdata ptr");                                       
+    CHECK_AND_RETURN_RET_LOG(userdata != nullptr, MEDIA_ERR_ERROR, "Invalid userdata ptr");
     std::unique_lock<std::shared_mutex> flushLock(userdata->flushMutex_);
     int32_t ret = OH_VideoDecoder_Flush(decoder_);
     CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "flush failed, ret: %{public}d", ret);

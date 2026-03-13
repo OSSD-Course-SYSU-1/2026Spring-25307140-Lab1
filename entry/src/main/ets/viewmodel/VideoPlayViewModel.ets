@@ -204,6 +204,8 @@ export class VideoPlayViewModel {
     this.durationTime = 0;
     this.chooseNumber = index;
     this.isUse = false;
+    this.chooseSpeed = Const.VIDEO_DEFAULT_SPEED;
+    this.speedText = $r('app.string.Default_speed_text');
     
     if (!rawDes) {
       hilog.error(DOMAIN, TAG, 'player inputFile is null');

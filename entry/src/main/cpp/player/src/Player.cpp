@@ -22,13 +22,13 @@
 #include "Player.h"
 
 constexpr int BALANCE_VALUE = 5;
-constexpr int64_t WAIT_TIME_US_THRESHOLD_WARNING = -1 * 40 * 1000; // warning threshold 40ms
-constexpr int64_t WAIT_TIME_US_THRESHOLD = 1 * 1000 * 1000;        // max sleep time 1s
-constexpr int64_t PER_SINK_TIME_THRESHOLD = 33 * 1000;             // max per sink time 33ms
-constexpr int64_t SINK_TIME_US_THRESHOLD = 100000;                 // max sink time 100ms
+constexpr int64_t WAIT_TIME_US_THRESHOLD_WARNING = -1 * 40 * 1000; // Warning threshold 40ms
+constexpr int64_t WAIT_TIME_US_THRESHOLD = 1 * 1000 * 1000;        // Max sleep time 1s
+constexpr int64_t PER_SINK_TIME_THRESHOLD = 33 * 1000;             // Max per sink time 33ms
+constexpr int64_t SINK_TIME_US_THRESHOLD = 100000;                 // Max sink time 100ms
 constexpr int32_t BYTES_PER_SAMPLE_2 = 2;                          // 2 bytes per sample
 constexpr int32_t SEC_TO_NSEC = 1000000000;                        // s to ns
-constexpr int32_t WAIT_TIME = 100;                                 // thread release wait time
+constexpr int32_t WAIT_TIME = 100;                                 // Thread release wait time
 
 using namespace std::chrono_literals;
 
@@ -108,7 +108,7 @@ int32_t Player::CreateAudioDecoder()
         OH_AudioStreamBuilder_SetChannelCount(builder_, videoInfo_.audioInfo.audioChannelCount);
         // Set the audio sample format
         OH_AudioStreamBuilder_SetSampleFormat(builder_, AUDIOSTREAM_SAMPLE_S16LE);
-        // Sets the encoding type of the audio stream
+        // Set the encoding type of the audio stream
         OH_AudioStreamBuilder_SetEncodingType(builder_, AUDIOSTREAM_ENCODING_TYPE_RAW);
         // Set the working scenario for the output audio stream
         OH_AudioStreamBuilder_SetRendererInfo(builder_, AUDIOSTREAM_USAGE_MUSIC);
@@ -152,7 +152,7 @@ int32_t Player::Start()
     std::unique_lock<std::mutex> lock(mutex_);
     int32_t ret;
     CHECK_AND_RETURN_RET_LOG(!isStarted_, MEDIA_ERR_ERROR, "Already started.");
-    CHECK_AND_RETURN_RET_LOG(demuxer_ != nullptr, MEDIA_ERR_ERROR, "Already started.");
+    CHECK_AND_RETURN_RET_LOG(demuxer_ != nullptr, MEDIA_ERR_ERROR, "demuxer is nullptr.");
     if (videoDecContext_) {
         // Start the video decoder.
         ret = videoDecoder_->Start();

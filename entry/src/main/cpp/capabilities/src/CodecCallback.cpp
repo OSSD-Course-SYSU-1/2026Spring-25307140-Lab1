@@ -45,7 +45,7 @@ OH_AudioData_Callback_Result CodecCallback::OnRenderWriteData(
                (unsigned int)index);
 
     // SAMPLE_S16LE 2 bytes per frame
-    // if set speed, cnt / speed
+    // If set speed, cnt / speed
     codecUserData->frameWrittenForSpeed += audioDataSize / codecUserData->speed /
         codecUserData->sampleInfo->audioInfo.audioChannelCount / BYTES_PER_SAMPLE_2;
     codecUserData->currentPosAudioBufferPts =
