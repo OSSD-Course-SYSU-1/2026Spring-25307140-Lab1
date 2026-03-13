@@ -32,7 +32,7 @@ export struct VideoPlayView {
   @ObjectLink viewModel: VideoPlayViewModel;
   @Link videoSources: resourceManager.RawFileDescriptor[];
   // [Start isFullScreen]
-  // the horizontal full-screen playback state flag.
+  // The horizontal full-screen playback state flag.
   @Watch('fullScreenSet') @State isFullScreen: boolean = false;
   // [End isFullScreen]
 
@@ -48,7 +48,7 @@ export struct VideoPlayView {
 
   // [Start fullScreenSet]
   fullScreenSet() {
-    // Window Orientation and Layout When Setting Full Screen.
+    // Change window orientation and layout when setting full screen.
     window.getLastWindow(this.getUIContext().getHostContext()).then((topWindow) => {
       topWindow.setPreferredOrientation(this.isFullScreen ?
         window.Orientation.AUTO_ROTATION_LANDSCAPE : window.Orientation.PORTRAIT).catch((error: BusinessError) => {
@@ -263,9 +263,6 @@ export struct VideoPlayView {
       .padding({ top: '16vp', bottom: '36vp' })
       .justifyContent(FlexAlign.End)
       .backgroundColor('#08ffffff')
-      .onClick(() => {
-        hilog.info(DOMAIN, TAG, 'click list');
-      })
     }
     .width('100%')
     .height('100%')

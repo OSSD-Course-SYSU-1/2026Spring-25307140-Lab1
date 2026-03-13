@@ -22,9 +22,9 @@
 #include <ohaudio/native_audiorenderer.h>
 #include <ohaudio/native_audiostreambuilder.h>
 #include "common/include/SampleInfo.h"
-#include "capbilities/include/AudioDecoder.h"
-#include "capbilities/include/Demuxer.h"
-#include "capbilities/include/VideoDecoder.h"
+#include "capabilities/include/AudioDecoder.h"
+#include "capabilities/include/Demuxer.h"
+#include "capabilities/include/VideoDecoder.h"
 #include "stdint.h"
 
 class Player {
@@ -58,7 +58,7 @@ private:
     CodecBufferInfo GetBufferInfo();
     bool AudioToVideoSync(CodecBufferInfo bufferInfo, int64_t framePosition);
     std::unique_ptr<VideoDecoder> videoDecoder_ = nullptr;
-    std::shared_ptr<AudioDecoder> audioDecoder_ = nullptr;
+    std::unique_ptr<AudioDecoder> audioDecoder_ = nullptr;
     std::unique_ptr<Demuxer> demuxer_ = nullptr;
 
     std::mutex mutex_;

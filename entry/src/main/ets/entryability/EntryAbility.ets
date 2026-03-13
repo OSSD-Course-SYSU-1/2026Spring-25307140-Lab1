@@ -53,6 +53,8 @@ export default class EntryAbility extends UIAbility {
           this.context.eventHub.emit('onForeground');
         } else if (data === window.WindowStageEventType.PAUSED) {
           this.context.eventHub.emit('onBackground');
+        } else {
+          hilog.info(DOMAIN, TAG, 'The window stage is not paused or resume');
         }
       })
     } catch (error) {

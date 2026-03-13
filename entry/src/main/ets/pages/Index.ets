@@ -41,6 +41,16 @@ struct Index {
     }
   }
 
+  aboutToDisappear(): void {
+    try {
+      for (let i = 0; i< VIDEO_NAMES.length; i++) {
+        this.getUIContext().getHostContext()?.resourceManager.closeRawFdSync(VIDEO_NAMES[i]);
+      }
+    } catch (error) {
+      hilog.error(0x0000, TAG, `aboutToDisappear catch error, code: ${error.code}, message: ${error.message}`);
+    }
+  }
+
   build() {
     Column() {
       VideoPlayView({

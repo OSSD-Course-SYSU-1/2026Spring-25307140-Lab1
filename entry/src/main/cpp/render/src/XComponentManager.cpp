@@ -27,7 +27,7 @@ XComponentManager XComponentManager::XComponentManager_;
 
 XComponentManager::~XComponentManager()
 {
-    OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "Callback", "~PluginManager");
+    OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "Callback", "~XComponentManager");
     for (auto iter = nativeXComponentSet_.begin(); iter != nativeXComponentSet_.end();) {
         if (*iter != nullptr) {
             delete *iter;
@@ -37,24 +37,29 @@ XComponentManager::~XComponentManager()
         }
     }
     nativeXComponentSet_.clear();
+    
+    if (nativeWindow_) {
+        delete nativeWindow_;
+        nativeWindow_ = nullptr;
+    }
 }
 
 void XComponentManager::Export(napi_env env, napi_value exports)
 {
     if ((env == nullptr) || (exports == nullptr)) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "PluginManager", "Export: env or exports is null");
+        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "XComponentManager", "Export: env or exports is null");
         return;
     }
 
     napi_value exportInstance = nullptr;
     if (napi_get_named_property(env, exports, OH_NATIVE_XCOMPONENT_OBJ, &exportInstance) != napi_ok) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "PluginManager", "Export: napi_get_named_property fail");
+        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "XComponentManager", "Export: napi_get_named_property fail");
         return;
     }
 
     OH_NativeXComponent *nativeXComponent = nullptr;
     if (napi_unwrap(env, exportInstance, reinterpret_cast<void **>(&nativeXComponent)) != napi_ok) {
-        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "PluginManager", "Export: napi_unwrap fail");
+        OH_LOG_Print(LOG_APP, LOG_ERROR, LOG_PRINT_DOMAIN, "XComponentManager", "Export: napi_unwrap fail");
         return;
     }
 
@@ -77,7 +82,6 @@ void XComponentManager::SetNativeXComponent(OH_NativeXComponent *nativeXComponen
 
     if (nativeXComponentSet_.find(nativeXComponent) == nativeXComponentSet_.end()) {
         nativeXComponentSet_.insert(nativeXComponent);
-        return;
     }
 }
 

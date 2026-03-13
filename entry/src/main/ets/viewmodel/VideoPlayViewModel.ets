@@ -204,6 +204,8 @@ export class VideoPlayViewModel {
     this.durationTime = 0;
     this.chooseNumber = index;
     this.isUse = false;
+    this.chooseSpeed = Const.VIDEO_DEFAULT_SPEED;
+    this.speedText = $r('app.string.Default_speed_text');
     
     if (!rawDes) {
       hilog.error(DOMAIN, TAG, 'player inputFile is null');
@@ -249,11 +251,11 @@ export class VideoPlayViewModel {
     }
   }
 
-  cleanup(): void {
+  async cleanup(): Promise<void> {
     try {
       this.stopPeriodicTask();
       this.unregisterEventListeners();
-      this.releasePlayer();
+      await this.releasePlayer();
     } catch (error) {
       hilog.error(0x0000, TAG, `cleanup catch error, code: ${error.code}, message: ${error.message}`);
     }

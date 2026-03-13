@@ -45,7 +45,7 @@ OH_AudioData_Callback_Result CodecCallback::OnRenderWriteData(
                (unsigned int)index);
 
     // SAMPLE_S16LE 2 bytes per frame
-    // if set speed, cnt / speed
+    // If set speed, cnt / speed
     codecUserData->frameWrittenForSpeed += audioDataSize / codecUserData->speed /
         codecUserData->sampleInfo->audioInfo.audioChannelCount / BYTES_PER_SAMPLE_2;
     codecUserData->currentPosAudioBufferPts =
@@ -54,10 +54,10 @@ OH_AudioData_Callback_Result CodecCallback::OnRenderWriteData(
         codecUserData->sampleInfo->audioInfo.audioChannelCount /
         BYTES_PER_SAMPLE_2;
 
-    lock.unlock();
     if (codecUserData->renderQueue.size() < audioDataSize) {
         codecUserData->renderCond.notify_all();
     }
+    lock.unlock();
     return AUDIO_DATA_CALLBACK_RESULT_VALID;
 }
 // Customize the audio stream event function
@@ -117,8 +117,8 @@ void CodecCallback::OnNeedInputBuffer(OH_AVCodec *codec, uint32_t index, OH_AVBu
         return;
     }
     codecUserData->inputBufferInfoQueue.emplace(index, buffer);
-    lock.unlock();
     codecUserData->inputCond.notify_all();
+    lock.unlock();
 }
 
 void CodecCallback::OnNewOutputBuffer(OH_AVCodec *codec, uint32_t index, OH_AVBuffer *buffer, void *userData)
@@ -133,6 +133,6 @@ void CodecCallback::OnNewOutputBuffer(OH_AVCodec *codec, uint32_t index, OH_AVBu
         return;
     }
     codecUserData->outputBufferInfoQueue.emplace(index, buffer);
-    lock.unlock();
     codecUserData->outputCond.notify_all();
+    lock.unlock();
 }

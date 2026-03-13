@@ -75,10 +75,9 @@ int32_t AudioDecoder::Configure(const SampleInfo &sampleInfo)
 
     int ret = OH_AudioCodec_Configure(decoder_, format);
     MEDIA_LOGI("====== AudioDecoder config ======");
-    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "Config failed, ret: %{public}d", ret);
     OH_AVFormat_Destroy(format);
     format = nullptr;
-
+    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "Config failed, ret: %{public}d", ret);
     return MEDIA_ERR_OK;
 }
 
@@ -127,9 +126,10 @@ int32_t AudioDecoder::FreeOutputBuffer(uint32_t bufferIndex)
 
 int32_t AudioDecoder::Flush(CodecUserData *userdata)
 {
+    CHECK_AND_RETURN_RET_LOG(userdata != nullptr, MEDIA_ERR_ERROR, "Invalid userdata ptr");
     std::unique_lock<std::shared_mutex> flushLock(userdata->flushMutex_);
     int32_t ret = OH_AudioCodec_Flush(decoder_);
-    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "Set surface failed, ret: %{public}d", ret);
+    CHECK_AND_RETURN_RET_LOG(ret == AV_ERR_OK, MEDIA_ERR_ERROR, "flush failed, ret: %{public}d", ret);
     flushLock.unlock();
     return MEDIA_ERR_OK;
 }

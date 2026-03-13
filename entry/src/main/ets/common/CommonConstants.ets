@@ -15,32 +15,32 @@
 
 export class CommonConstants {
   /**
-   * video speed array.
+   * Video speed array.
    */
   static readonly VIDEO_SPEED_ARR: number[] = [3, 2, 1];
 
   /**
-   * video speed show text array.
+   * Video speed show text array.
    */
   static readonly VIDEO_SPEED_TEXT_ARR: string[] = ['3.0X', '2.0X', '1.0X']
 
   /**
-   * video default speed.
+   * Video default speed.
    */
   static readonly VIDEO_DEFAULT_SPEED: number = 1;
 
   /**
-   * time interval ms.
+   * Time interval ms.
    */
   static readonly TIME_INTERVAL: number = 20;
 
   /**
-   * time ratio us to s.
+   * Time ratio us to s.
    */
   static readonly TIME_RATIO: number = 1000000;
 
   /**
-   * reload wait time after seek ms.
+   * Reload wait time after seek ms.
    */
   static readonly RELOAD_TIME: number = 300;
 }
