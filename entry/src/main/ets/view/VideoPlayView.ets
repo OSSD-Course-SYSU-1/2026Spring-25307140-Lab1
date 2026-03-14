@@ -85,6 +85,7 @@ export struct VideoPlayView {
 
   @Builder
   XComponentView() {
+    // [Start XComponent]
     XComponent({
       id: 'playerXC',
       type: XComponentType.SURFACE,
@@ -92,6 +93,7 @@ export struct VideoPlayView {
     })
       .width(WIDTH_SIZE)
       .height(this.isFullScreen ? NORMAL_SIZE : FULL_SIZE)
+    // [End XComponent]
   }
 
   @Builder
