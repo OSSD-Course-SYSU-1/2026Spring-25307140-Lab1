@@ -218,8 +218,8 @@ void Player::VideoDecInputThread()
         CHECK_AND_BREAK_LOG(isStarted_, "Work done, thread out");
         CHECK_AND_CONTINUE_LOG(!isPause_, "not pause, continue");
         CHECK_AND_CONTINUE_LOG(!videoDecContext_->inputBufferInfoQueue.empty(), "Buffer queue is empty, continue.");
-        // [EndExclude videoInput]
 
+        // [EndExclude videoInput]
         // Get AVBuffer and maintain the queue.
         CodecBufferInfo bufferInfo = videoDecContext_->inputBufferInfoQueue.front();
         videoDecContext_->inputBufferInfoQueue.pop();
@@ -233,14 +233,12 @@ void Player::VideoDecInputThread()
             continue;
         }
         // [EndExclude videoInput]
-
         // [Start XPS]
         // [Start VideoReadSample]
         // read sample from demuxer.
         int32_t ret = demuxer_->ReadSample(demuxer_->GetVideoTrackId(),
                                            reinterpret_cast<OH_AVBuffer *>(bufferInfo.buffer), bufferInfo.attr);
         CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "ReadSample failed, thread out");
-
         // [StartExclude XPS]
         // [StartExclude videoInput]
         // Check if the buffer flag include eos.
@@ -248,23 +246,20 @@ void Player::VideoDecInputThread()
             while (!isAudioWaitSeek_.load()) {
                 std::this_thread::sleep_for(std::chrono::microseconds(WAIT_TIME));
             }
-            // Seek to the first frame.
-            ret = demuxer_->Seek(0);
+            ret = demuxer_->Seek(0); // Seek to the first frame.
             CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "Loop failed, thread out");
             // Read first frame data from demuxer.
             ret = demuxer_->ReadSample(demuxer_->GetVideoTrackId(), reinterpret_cast<OH_AVBuffer *>(bufferInfo.buffer),
                                        bufferInfo.attr);
             CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "ReadSample failed, thread out");
         }
-
+        // [End VideoReadSample]
         if (audioDecContext_ && isAudioWaitSeek_.load()) {
             audioDecContext_->endCond.notify_all();
             audioDecContext_->inputCond.notify_all();
         }
-        // [End VideoReadSample]
         // [EndExclude XPS]
         // [EndExclude videoInput]
-
         // push the buffer to the decoder.
         ret = videoDecoder_->PushInputBuffer(bufferInfo);
         CHECK_AND_BREAK_LOG(ret == MEDIA_ERR_OK, "Push data failed, thread out");
@@ -516,8 +511,7 @@ int32_t Player::Pause()
 int32_t Player::Resume()
 {
     CHECK_AND_RETURN_RET_LOG(isStarted_, MEDIA_ERR_ERROR, "player do not start!");
-    // Cancel the pause state.
-    isPause_.store(false);
+    isPause_.store(false); // Cancel the pause state.
     // Notify the thread to continue work.
     if (videoDecContext_) {
         videoDecContext_->inputCond.notify_all();
@@ -527,9 +521,8 @@ int32_t Player::Resume()
         audioDecContext_->inputCond.notify_all();
         audioDecContext_->outputCond.notify_all();
     }
-    // if need audio to play, continue.
     if (audioRenderer_) {
-        OH_AudioRenderer_Start(audioRenderer_);
+        OH_AudioRenderer_Start(audioRenderer_); // if need audio to play, continue.
     }
     return MEDIA_ERR_OK;
 }
@@ -538,6 +531,7 @@ int32_t Player::Resume()
 // [Start SetSpeed]
 void Player::SetSpeed(float speed)
 {
+    // [StartExclude SetSpeed]
     CHECK_AND_RETURN_LOG(isStarted_, "player do not start!");
     if (speed_ == speed) {
         MEDIA_LOGI("Same speed value");
@@ -548,7 +542,7 @@ void Player::SetSpeed(float speed)
         MEDIA_LOGE("Audio ptr is nullptr");
         return;
     }
-
+    // [EndExclude SetSpeed]
     // Set audio play speed.
     OH_AudioRenderer_SetSpeed(audioRenderer_, speed);
     // Set speed value for sub thread.
@@ -635,11 +629,12 @@ void Player::ReleaseThread()
 // [Start Release]
 void Player::Release()
 {
+    // [StartExclude Release]
     // Set release state.
     std::unique_lock<std::mutex> lock(mutex_);
     isStarted_ = false;
     isPause_ = false;
-
+    // [EndExclude Release]
     // Notify the sub thread continue and over.
     if (videoDecContext_) {
         videoDecContext_->inputCond.notify_all();
@@ -672,12 +667,12 @@ void Player::Release()
         videoDecoder_->Release();
         videoDecoder_.reset();
     }
+    // [StartExclude Release]
     // Clear video info.
     if (videoDecContext_ != nullptr) {
         delete videoDecContext_;
         videoDecContext_ = nullptr;
     }
-    // [StartExclude Release]
     if (audioDecoder_ != nullptr) {
         audioDecoder_->Release();
         audioDecoder_.reset();
@@ -690,7 +685,7 @@ void Player::Release()
         OH_AudioStreamBuilder_Destroy(builder_);
         builder_ = nullptr;
     }
-    // [EndExclude Release]
     lock.unlock();
+    // [EndExclude Release]
 }
 // [End Release]
