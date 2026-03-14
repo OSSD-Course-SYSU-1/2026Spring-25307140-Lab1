@@ -582,7 +582,7 @@ int32_t Player::Seek(int64_t desTime)
         ret = videoDecoder_->Start();
         CHECK_AND_RETURN_RET_LOG(ret == MEDIA_ERR_OK, MEDIA_ERR_ERROR, "video seek start videoDecoder failed");
     }
-
+    // [StartExclude Seek]
     // When the video is paused, continue playing after seeking.
     if (isPause_.load()) {
         Resume();
@@ -591,6 +591,7 @@ int32_t Player::Seek(int64_t desTime)
     currentRenderTime_.store(desTime);
     isReadRenderTime_.store(true);
     return MEDIA_ERR_OK;
+    // [EndExclude Seek]
 }
 // [End Seek]
 
