@@ -33,7 +33,7 @@ export struct VideoPlayView {
   @Link videoSources: resourceManager.RawFileDescriptor[];
   // [Start isFullScreen]
   // The horizontal full-screen playback state flag.
-  @Watch('fullScreenSet') @State isFullScreen: boolean = false;
+  @Watch('fullScreenSet') @Link isFullScreen: boolean;
   // [End isFullScreen]
 
   aboutToAppear(): void {
@@ -85,6 +85,7 @@ export struct VideoPlayView {
 
   @Builder
   XComponentView() {
+    // [Start XComponent]
     XComponent({
       id: 'playerXC',
       type: XComponentType.SURFACE,
@@ -92,6 +93,7 @@ export struct VideoPlayView {
     })
       .width(WIDTH_SIZE)
       .height(this.isFullScreen ? NORMAL_SIZE : FULL_SIZE)
+    // [End XComponent]
   }
 
   @Builder
@@ -141,8 +143,9 @@ export struct VideoPlayView {
       this.SpeedButton()
       this.FullScreenButton()
     }
-    .width(this.isFullScreen ? '70%' : '100%')
+    .width('100%')
     .height('16%')
+    .padding(this.isFullScreen ? { left: '36vp', right: '36vp' } : 0)
     .justifyContent(FlexAlign.SpaceBetween)
     .visibility(this.viewModel.isSpeedListVisible ? Visibility.Hidden : Visibility.Visible)
   }
@@ -158,7 +161,7 @@ export struct VideoPlayView {
           this.viewModel.playState = this.viewModel.togglePlayPause(this.viewModel.playState);
         })
     }
-    .width(this.isFullScreen ? '5%' : '8%')
+    .width('25vp')
     .height('100%')
     .justifyContent(FlexAlign.Center)
   }
@@ -175,7 +178,7 @@ export struct VideoPlayView {
         min: 0,
         max: this.viewModel.durationTime
       })
-        .width(this.isFullScreen ? '80%' : '70%')
+        .width(this.isFullScreen ? '90%' : '70%')
         .selectedColor('#F67609')
         .trackColor('#464642')
         .enabled(!this.viewModel.isSeek)
@@ -187,7 +190,7 @@ export struct VideoPlayView {
         .fontColor(Color.White)
         .fontSize('12fp')
     }
-    .width(this.isFullScreen ? '80%' : '70%')
+    .width(this.isFullScreen ? '90%' : '70%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
   }
@@ -199,7 +202,7 @@ export struct VideoPlayView {
         .fontColor(Color.White)
         .fontSize('14fp')
     }
-    .width(this.isFullScreen ? '7%' : '14%')
+    .width(this.isFullScreen ? '5%' : '14%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
     .onClick(() => {
