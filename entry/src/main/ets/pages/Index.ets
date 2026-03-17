@@ -26,6 +26,7 @@ const TAG = 'INDEX';
 struct Index {
   @State videoResources : resourceManager.RawFileDescriptor[] = [];
   @State viewModel: VideoPlayViewModel = new VideoPlayViewModel();
+  @State isFullScreen: boolean = false;
 
   aboutToAppear(): void {
     try {
@@ -51,11 +52,20 @@ struct Index {
     }
   }
 
+  onBackPress(): boolean | void {
+    if (this.isFullScreen) {
+      this.isFullScreen = false;
+      return true;
+    }
+    return false;
+  }
+
   build() {
     Column() {
       VideoPlayView({
         viewModel: this.viewModel,
-        videoSources: $videoResources
+        videoSources: $videoResources,
+        isFullScreen: this.isFullScreen
       });
     }
     .width('100%')
