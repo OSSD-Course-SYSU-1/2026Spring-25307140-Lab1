@@ -50,7 +50,7 @@ export class VideoPlayViewModel {
     try {
       await this.setWindowProperties();
       this.registerEventListeners();
-      this.startPeriodicTask();
+      this.startTimer();
     } catch (error) {
       hilog.error(DOMAIN, TAG, `initialize catch error, code: ${error.code}, message: ${error.message}`);
     }
@@ -63,7 +63,6 @@ export class VideoPlayViewModel {
     
     try {
       const topWindow = await window.getLastWindow(this.hostContext);
-      
       await topWindow.setWindowSystemBarProperties({
         statusBarContentColor: '#FFFFFF'
       });
@@ -92,8 +91,8 @@ export class VideoPlayViewModel {
     this.hostContext.eventHub.off('onForeground');
   }
 
-  startPeriodicTask(): void {
-    this.stopPeriodicTask();
+  startTimer(): void {
+    this.stopTimer();
     this.timerId = setInterval(() => {
       if (this.nativePlayerObj === BigInt(0)) {
         return;
@@ -109,7 +108,7 @@ export class VideoPlayViewModel {
     }, Const.TIME_INTERVAL);
   }
 
-  stopPeriodicTask(): void {
+  stopTimer(): void {
     if (this.timerId !== -1) {
       clearInterval(this.timerId);
       this.timerId = -1;
@@ -217,6 +216,7 @@ export class VideoPlayViewModel {
       await this.releasePlayer();
       this.nativePlayerObj = player.createPlayer();
       const data = await player.init(this.nativePlayerObj, rawDes.fd, rawDes.offset, rawDes.length);
+      this.isSeek = false;
       
       if (data.code === 0) {
         this.durationTime = data.durationTime / Const.TIME_RATIO;
@@ -253,7 +253,7 @@ export class VideoPlayViewModel {
 
   async cleanup(): Promise<void> {
     try {
-      this.stopPeriodicTask();
+      this.stopTimer();
       this.unregisterEventListeners();
       await this.releasePlayer();
     } catch (error) {
