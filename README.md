@@ -56,14 +56,14 @@
 │  │  └──libplayer
 │  │     └──Index.d.ts             // 暴露给上层的接口
 │  └──CMakeLists.txt               // 编译入口
-└──src/main/ets                       // ArkTS层
+└──src/main/ets                    // ArkTS层
    ├──common  
    │  ├──CommonContants.ets        // 公共常量
    │  └──TimeUtils.ets             // 时间工具能力接口    
    ├──entryability  
-   │  └──EntryAbility.ets 
+   │  └──EntryAbility.ets          // 程序入口
    ├──entrybackupability  
-   │  └──EntryBackupAbility.ets  
+   │  └──EntryBackupAbility.ets    // 程序备份恢复能力
    ├──model
    │  └──PlayerStateModel.ets      // 视频状态枚举  
    ├──pages
