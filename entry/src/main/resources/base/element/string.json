@@ -1,0 +1,36 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "VideoControl"
+    },
+    {
+      "name": "Default_speed_text",
+      "value": "Speed"
+    },
+    {
+      "name": "Episodes",
+      "value": "Episodes"
+    },
+    {
+      "name": "Video_name",
+      "value": "Sample videos"
+    },
+    {
+      "name": "reason_read_media",
+      "value": "用于读取相册中的视频文件"
+    },
+    {
+      "name": "reason_write_media",
+      "value": "用于保存截图到相册"
+    }
+  ]
+}
